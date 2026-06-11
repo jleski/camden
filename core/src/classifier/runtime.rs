@@ -234,6 +234,13 @@ pub fn softmax(logits: &[f32]) -> Vec<f32> {
     exp_vals.iter().map(|x| x / sum).collect()
 }
 
+/// Sigmoid function for converting a single logit to probability.
+/// Used for multi-label classification where each output is independent.
+#[inline]
+pub fn sigmoid(x: f32) -> f32 {
+    1.0 / (1.0 + (-x).exp())
+}
+
 /// Errors that can occur during classification.
 #[derive(Debug)]
 pub enum ClassifierError {

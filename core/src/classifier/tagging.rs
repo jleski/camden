@@ -4,7 +4,7 @@
 
 use super::config::ModelInputSpec;
 use super::runtime::{
-    load_session, preprocess_image_with_layout, softmax, ClassifierError, IMAGE_NET_MEAN,
+    load_session, preprocess_image_with_layout, sigmoid, softmax, ClassifierError, IMAGE_NET_MEAN,
     IMAGE_NET_STD,
 };
 use once_cell::sync::Lazy;
@@ -15,8 +15,9 @@ use std::path::Path;
 
 /// Default minimum confidence threshold for tags (0.0-1.0).
 /// Tags below this threshold are filtered out.
-/// 0.6 = 60% confidence
-pub const DEFAULT_MIN_TAG_CONFIDENCE: f32 = 0.6;
+/// 0.35 = 35% confidence - lower threshold allows more semantic tags from
+/// multi-label models (WD taggers) where probability mass is spread across 10k+ tags.
+pub const DEFAULT_MIN_TAG_CONFIDENCE: f32 = 0.35;
 
 /// TOML structure for tag category configuration.
 #[derive(Debug, Deserialize)]
@@ -229,12 +230,22 @@ impl TaggingClassifier {
             logits_slice.to_vec()
         };
         
-        // For multi-label models (e.g., WD taggers), outputs are already sigmoid probabilities
-        // for each tag independently. Do NOT apply softmax as it would incorrectly normalize
-        // across all 10k+ tags, making all probabilities tiny.
+        // For multi-label models (e.g., WD taggers), each output is an independent probability.
+        // Do NOT apply softmax as it would incorrectly normalize across all 10k+ tags.
+        // However, some ONNX models output raw logits (pre-sigmoid) while others include
+        // sigmoid in the graph. We detect this by checking if values exceed [0, 1] range.
         let probabilities = if self.config.multi_label {
-            // Multi-label: use raw sigmoid outputs directly
-            logits.clone()
+            // Check if outputs appear to be raw logits (outside [0, 1] range)
+            let max_val = logits.iter().cloned().fold(f32::NEG_INFINITY, f32::max);
+            let min_val = logits.iter().cloned().fold(f32::INFINITY, f32::min);
+
+            if max_val > 1.0 || min_val < 0.0 {
+                // Raw logits detected - apply sigmoid to convert to probabilities
+                logits.iter().map(|&x| sigmoid(x)).collect()
+            } else {
+                // Already probabilities - use as-is
+                logits.clone()
+            }
         } else {
             // Single-label: check if already probabilities or apply softmax
             let logits_sum: f32 = logits.iter().sum();

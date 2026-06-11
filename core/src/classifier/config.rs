@@ -149,6 +149,12 @@ pub struct ModelPreset {
     pub config: ModelConfig,
 }
 
+/// Default max tags for single model mode.
+pub const DEFAULT_MAX_TAGS_SINGLE: usize = 5;
+
+/// Default max tags for ensemble mode (more tags from multiple models).
+pub const DEFAULT_MAX_TAGS_ENSEMBLE: usize = 10;
+
 /// Root classifier configuration.
 ///
 /// # Simple Configuration
@@ -203,6 +209,14 @@ pub struct ClassifierConfig {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tagging_models: Vec<String>,
 
+    /// Maximum number of tags to return per image in single-model mode
+    #[serde(default = "default_max_tags_single")]
+    pub max_tags_single: usize,
+
+    /// Maximum number of tags to return per image in ensemble mode
+    #[serde(default = "default_max_tags_ensemble")]
+    pub max_tags_ensemble: usize,
+
     /// Custom model configurations (optional, overrides built-in presets)
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub models: HashMap<String, ModelConfig>,
@@ -214,6 +228,14 @@ pub struct ClassifierConfig {
     /// Built-in model registry (not serialized, populated at runtime)
     #[serde(skip)]
     builtin_models: HashMap<String, ModelConfig>,
+}
+
+fn default_max_tags_single() -> usize {
+    DEFAULT_MAX_TAGS_SINGLE
+}
+
+fn default_max_tags_ensemble() -> usize {
+    DEFAULT_MAX_TAGS_ENSEMBLE
 }
 
 fn default_models_dir() -> PathBuf {
@@ -244,6 +266,9 @@ impl Default for ClassifierConfig {
             // Ensemble mode disabled by default (set in config file to enable)
             moderation_models: Vec::new(),
             tagging_models: Vec::new(),
+            // Max tags per image
+            max_tags_single: DEFAULT_MAX_TAGS_SINGLE,
+            max_tags_ensemble: DEFAULT_MAX_TAGS_ENSEMBLE,
             models: HashMap::new(),
             presets: Self::default_presets(),
             builtin_models,
@@ -341,6 +366,13 @@ impl ClassifierConfig {
             }
             if !user.tagging_models.is_empty() {
                 config.tagging_models = user.tagging_models;
+            }
+            // Max tags configuration
+            if user.max_tags_single != default_max_tags_single() {
+                config.max_tags_single = user.max_tags_single;
+            }
+            if user.max_tags_ensemble != default_max_tags_ensemble() {
+                config.max_tags_ensemble = user.max_tags_ensemble;
             }
             // User model overrides
             for (id, model) in user.models {
@@ -465,6 +497,17 @@ impl ClassifierConfig {
     /// Check if tagging ensemble mode is enabled (multiple tagging models configured).
     pub fn is_tagging_ensemble_mode(&self) -> bool {
         self.tagging_models.len() > 1
+    }
+
+    /// Get the effective maximum tags based on current mode.
+    ///
+    /// Returns `max_tags_ensemble` if ensemble mode is enabled, otherwise `max_tags_single`.
+    pub fn effective_max_tags(&self) -> usize {
+        if self.is_tagging_ensemble_mode() {
+            self.max_tags_ensemble
+        } else {
+            self.max_tags_single
+        }
     }
 
     /// List all registered models (deprecated, use available_models instead).

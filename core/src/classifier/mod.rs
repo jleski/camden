@@ -40,7 +40,7 @@ mod models;
 mod runtime;
 mod tagging;
 
-pub use config::{ClassifierConfig, ModelConfig, ModelInputSpec, ModelOutputSpec, ModelPreset, ModelType};
+pub use config::{ClassifierConfig, ModelConfig, ModelInputSpec, ModelOutputSpec, ModelPreset, ModelType, DEFAULT_MAX_TAGS_SINGLE, DEFAULT_MAX_TAGS_ENSEMBLE};
 pub use moderation::{AggregationStrategy, EnsembleModerationClassifier, ModerationCategories, ModerationConfig, ModerationFlags, ModerationModelFormat, ModerationTier, NsfwClassifier};
 pub use runtime::{ClassifierError, ModelPaths};
 pub use tagging::{EnsembleTaggingClassifier, ImageTag, TagCategory, TaggingClassifier, TaggingConfig};
@@ -325,6 +325,11 @@ impl ImageClassifier {
     }
 
     /// Run full classification (moderation + tagging).
+    ///
+    /// This method runs both moderation and tagging, then cross-references
+    /// the results to adjust the moderation tier based on tag evidence.
+    /// This helps catch cases where explicit tags are detected but the
+    /// moderation model produces a lower tier.
     pub fn classify(&mut self, image_path: &Path) -> Result<ClassificationResult, ClassifierError> {
         let moderation = match &mut self.moderation {
             ModerationClassifierVariant::Single(classifier) => classifier.classify(image_path)?,
@@ -334,6 +339,10 @@ impl ImageClassifier {
             TaggingClassifierVariant::Single(classifier) => classifier.classify(image_path, 10)?,
             TaggingClassifierVariant::Ensemble(classifier) => classifier.classify(image_path, 10)?,
         };
+
+        // Adjust moderation tier based on tag evidence
+        let moderation = adjust_tier_from_tags(moderation, &tags);
+
         Ok(ClassificationResult { moderation, tags })
     }
 }
@@ -343,6 +352,74 @@ impl ImageClassifier {
 pub struct ClassificationResult {
     pub moderation: ModerationFlags,
     pub tags: Vec<ImageTag>,
+}
+
+/// NSFW-indicative tags with their severity weights for tier adjustment.
+/// Weight represents how strongly a tag indicates NSFW content (0.0-1.0).
+const NSFW_TAG_WEIGHTS: &[(&str, f32)] = &[
+    // Explicit content tags (highest weight)
+    ("explicit", 1.0),
+    ("sex", 1.0),
+    ("penis", 0.95),
+    ("pussy", 0.95),
+    ("vaginal", 0.95),
+    ("anal", 0.95),
+    ("cum", 0.9),
+    ("nude", 0.9),
+    ("naked", 0.9),
+    ("bottomless", 0.85),
+    // Partial nudity tags
+    ("topless", 0.7),
+    ("nipples", 0.65),
+    ("areola", 0.65),
+    // Suggestive content tags
+    ("breasts", 0.35),
+    ("cleavage", 0.3),
+    ("underwear", 0.25),
+    ("bikini", 0.2),
+    ("swimsuit", 0.15),
+    ("ass", 0.25),
+    ("thighs", 0.15),
+];
+
+/// Adjust moderation tier based on tag evidence.
+///
+/// Cross-references detected tags with NSFW-indicative keywords to potentially
+/// escalate the moderation tier when models disagree. This helps catch cases
+/// where tagging models detect explicit content that moderation models miss.
+fn adjust_tier_from_tags(mut flags: ModerationFlags, tags: &[ImageTag]) -> ModerationFlags {
+    // Calculate cumulative NSFW evidence from tags
+    let nsfw_evidence: f32 = tags
+        .iter()
+        .filter_map(|tag| {
+            let tag_lower = tag.name.to_lowercase();
+            NSFW_TAG_WEIGHTS
+                .iter()
+                .find(|(name, _)| tag_lower.contains(name))
+                .map(|(_, weight)| tag.confidence * weight)
+        })
+        .sum();
+
+    // Escalate tier based on cumulative evidence
+    // Thresholds are tuned to avoid false escalations while catching obvious misses
+    let new_tier = match (flags.tier, nsfw_evidence) {
+        // Strong evidence (explicit tags with high confidence) -> Restricted
+        (_, e) if e > 1.5 => ModerationTier::Restricted,
+        // Moderate-high evidence -> Mature (unless already higher)
+        (ModerationTier::Safe, e) if e > 0.9 => ModerationTier::Mature,
+        (ModerationTier::Sensitive, e) if e > 0.9 => ModerationTier::Mature,
+        // Moderate evidence -> Sensitive (unless already higher)
+        (ModerationTier::Safe, e) if e > 0.5 => ModerationTier::Sensitive,
+        // Keep existing tier if no significant evidence
+        (tier, _) => tier,
+    };
+
+    // Only escalate, never downgrade
+    if new_tier.level() > flags.tier.level() {
+        flags.tier = new_tier;
+    }
+
+    flags
 }
 
 /// Load tagging labels from model output specification.

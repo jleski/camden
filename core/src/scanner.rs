@@ -67,7 +67,7 @@ impl ScanConfig {
     }
 }
 
-/// Maximum number of tags to keep per image.
+/// Maximum number of tags to keep per image (legacy constant, prefer config.effective_max_tags()).
 pub const MAX_TAGS_PER_IMAGE: usize = 5;
 
 /// Whether to include confidence scores in tag strings (e.g., "boat (85%)") for debugging.
@@ -347,8 +347,9 @@ fn classify_and_tag(
         }
     }
 
-    // Run tagging (max 5 tags)
-    match classifier.tag(path, MAX_TAGS_PER_IMAGE) {
+    // Run tagging (using config-based max tags)
+    let max_tags = classifier.config().effective_max_tags();
+    match classifier.tag(path, max_tags) {
         Ok(tags) => {
             metadata.tags = tags
                 .into_iter()

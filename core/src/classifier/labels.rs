@@ -181,7 +181,7 @@ pub fn load_labels_from_text(path: &Path) -> Result<Vec<String>, ClassifierError
 
 /// Load labels from a JSON file.
 ///
-/// Expects a JSON array of strings or a JSON object with a "labels" field.
+/// Supports multiple JSON formats:
 ///
 /// # Arguments
 ///
@@ -191,17 +191,26 @@ pub fn load_labels_from_text(path: &Path) -> Result<Vec<String>, ClassifierError
 ///
 /// A vector of label strings
 ///
-/// # Format
+/// # Formats
 ///
 /// Array format:
 /// ```json
 /// ["label1", "label2", "label3"]
 /// ```
 ///
-/// Object format:
+/// Object with labels field:
 /// ```json
 /// {
 ///   "labels": ["label1", "label2", "label3"]
+/// }
+/// ```
+///
+/// Index-mapped format (CL Tagger style):
+/// ```json
+/// {
+///   "0": {"tag": "general", "category": "Rating"},
+///   "1": {"tag": "sensitive", "category": "Rating"},
+///   "4": {"tag": "1girl", "category": "General"}
 /// }
 /// ```
 pub fn load_labels_from_json(path: &Path) -> Result<Vec<String>, ClassifierError> {
@@ -229,6 +238,41 @@ pub fn load_labels_from_json(path: &Path) -> Result<Vec<String>, ClassifierError
     if let Ok(obj) = serde_json::from_str::<LabelsObject>(&content) {
         if !obj.labels.is_empty() {
             return Ok(obj.labels);
+        }
+    }
+
+    // Try parsing as index-mapped object (CL Tagger format)
+    // Format: {"0": {"tag": "...", "category": "..."}, "1": {...}, ...}
+    #[derive(serde::Deserialize)]
+    struct TagEntry {
+        tag: String,
+        #[allow(dead_code)]
+        category: Option<String>,
+    }
+
+    if let Ok(map) = serde_json::from_str::<std::collections::HashMap<String, TagEntry>>(&content) {
+        // Parse indices and sort by numeric order
+        let mut entries: Vec<(usize, String)> = map
+            .into_iter()
+            .filter_map(|(k, v)| k.parse::<usize>().ok().map(|i| (i, v.tag)))
+            .collect();
+
+        if !entries.is_empty() {
+            entries.sort_by_key(|(i, _)| *i);
+
+            // Build label vector, filling gaps with empty strings for missing indices
+            let max_idx = entries.last().map(|(i, _)| *i).unwrap_or(0);
+            let mut labels = vec![String::new(); max_idx + 1];
+
+            for (idx, tag) in entries {
+                labels[idx] = tag;
+            }
+
+            // Filter out empty strings (sparse indices)
+            let non_empty_count = labels.iter().filter(|s| !s.is_empty()).count();
+            if non_empty_count > 0 {
+                return Ok(labels);
+            }
         }
     }
 

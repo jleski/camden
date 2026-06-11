@@ -105,11 +105,25 @@ pub fn aggregate_by_max_tier(results: &[ModerationFlags]) -> ModerationFlags {
     }
 }
 
-/// Merge tags from multiple models by averaging confidence scores.
+/// Merge tags from multiple models by averaging confidence scores with agreement weighting.
 ///
 /// When multiple models produce the same tag (matched by name), this function
-/// averages their confidence scores. Tags are then filtered by the minimum
-/// confidence threshold.
+/// averages their confidence scores and weights by model agreement. Tags detected
+/// by more models are boosted, while tags detected by fewer models are penalized.
+///
+/// # Agreement Weighting
+///
+/// The final confidence is calculated as:
+/// ```text
+/// weighted_confidence = avg_confidence * (0.5 + 0.5 * agreement_ratio)
+/// ```
+///
+/// Where `agreement_ratio = models_detecting_tag / total_models`.
+///
+/// This means:
+/// - A tag detected by all 3 models gets full confidence (multiplied by 1.0)
+/// - A tag detected by 2 of 3 models gets ~83% of its average confidence
+/// - A tag detected by 1 of 3 models gets ~67% of its average confidence
 ///
 /// # Arguments
 ///
@@ -118,14 +132,19 @@ pub fn aggregate_by_max_tier(results: &[ModerationFlags]) -> ModerationFlags {
 ///
 /// # Returns
 ///
-/// A vector of merged tags with averaged confidence scores, sorted by confidence
+/// A vector of merged tags with agreement-weighted confidence scores, sorted by confidence
 ///
 /// # Examples
 ///
 /// ```ignore
-/// let merged = merge_tags(vec![model1_tags, model2_tags, model3_tags], 0.6);
+/// let merged = merge_tags(vec![model1_tags, model2_tags, model3_tags], 0.35);
 /// ```
 pub fn merge_tags(all_tags: Vec<Vec<ImageTag>>, min_confidence: f32) -> Vec<ImageTag> {
+    let total_models = all_tags.len();
+    if total_models == 0 {
+        return Vec::new();
+    }
+
     // Group tags by name
     let mut tag_map: HashMap<String, Vec<f32>> = HashMap::new();
     let mut tag_prototypes: HashMap<String, ImageTag> = HashMap::new();
@@ -142,18 +161,25 @@ pub fn merge_tags(all_tags: Vec<Vec<ImageTag>>, min_confidence: f32) -> Vec<Imag
         }
     }
 
-    // Average confidence scores for each tag
+    // Average confidence scores with agreement weighting
     let mut merged: Vec<ImageTag> = tag_map
         .into_iter()
         .filter_map(|(name, confidences)| {
-            let avg_confidence = confidences.iter().sum::<f32>() / confidences.len() as f32;
+            let models_detecting = confidences.len();
+            let avg_confidence = confidences.iter().sum::<f32>() / models_detecting as f32;
 
-            // Only return tags that meet minimum confidence after averaging
-            if avg_confidence >= min_confidence {
+            // Weight by model agreement: tags detected by more models get boosted
+            // Formula: 0.5 base + 0.5 * agreement_ratio
+            // This gives a range from 0.5 (1 model) to 1.0 (all models)
+            let agreement_ratio = models_detecting as f32 / total_models as f32;
+            let weighted_confidence = avg_confidence * (0.5 + 0.5 * agreement_ratio);
+
+            // Only return tags that meet minimum confidence after weighting
+            if weighted_confidence >= min_confidence {
                 tag_prototypes.get(&name).map(|prototype| ImageTag {
                     name: prototype.name.clone(),
                     label: prototype.label.clone(),
-                    confidence: avg_confidence,
+                    confidence: weighted_confidence,
                     category: prototype.category,
                 })
             } else {
