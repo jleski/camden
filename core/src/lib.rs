@@ -5,9 +5,9 @@
 //! focuses on data-transfer objects (`ScanSummary`, `DuplicateGroup`,
 //! `DuplicateEntry`) that are serialisable for downstream consumers.
 
+pub mod aspect_ratio;
 #[cfg(feature = "classification")]
 pub mod classifier;
-pub mod aspect_ratio;
 pub mod detector;
 pub mod operations;
 pub mod progress;

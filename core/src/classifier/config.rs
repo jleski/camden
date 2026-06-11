@@ -654,7 +654,9 @@ mod tests {
     #[test]
     fn test_model_path_resolution() {
         let config = ClassifierConfig::default();
-        let path = config.model_path("smilingwolf-wd-v1-4-convnextv2-tagger-v2").unwrap();
+        let path = config
+            .model_path("smilingwolf-wd-v1-4-convnextv2-tagger-v2")
+            .unwrap();
         assert!(path.ends_with("smilingwolf-wd-v1-4-convnextv2-tagger-v2.onnx"));
     }
 
@@ -679,7 +681,9 @@ mod tests {
         assert!(config.get_model("taufiqdp-mobilenetv4-nsfw").is_some());
         assert!(config.get_model("spiele-nsfw-image-detector").is_some());
         // Check tagging models
-        assert!(config.get_model("smilingwolf-wd-v1-4-convnextv2-tagger-v2").is_some());
+        assert!(config
+            .get_model("smilingwolf-wd-v1-4-convnextv2-tagger-v2")
+            .is_some());
         assert!(config.get_model("fancyfeast-joytag").is_some());
     }
 }

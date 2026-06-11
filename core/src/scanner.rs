@@ -1,4 +1,4 @@
-use crate::aspect_ratio::is_standard_aspect_ratio;
+use crate::aspect_ratio::{get_aspect_ratio_priority, AspectRatioPriority};
 use crate::classifier::{self, ClassifierConfig, ImageClassifier};
 use crate::detector::{
     DetectorConfig, DuplicateDetector, ImageAnalysis, ImageFeatures, ImageMetadata, MatchResult,
@@ -525,13 +525,13 @@ fn group_records(
     if config.prefer_display_aspect_ratios {
         for group in &mut groups {
             group.entries.sort_by(|a, b| {
-                let is_a_standard =
-                    is_standard_aspect_ratio(a.metadata.dimensions.0, a.metadata.dimensions.1);
-                let is_b_standard =
-                    is_standard_aspect_ratio(b.metadata.dimensions.0, b.metadata.dimensions.1);
+                let priority_a: AspectRatioPriority =
+                    get_aspect_ratio_priority(a.metadata.dimensions.0, a.metadata.dimensions.1);
+                let priority_b: AspectRatioPriority =
+                    get_aspect_ratio_priority(b.metadata.dimensions.0, b.metadata.dimensions.1);
 
-                is_b_standard
-                    .cmp(&is_a_standard)
+                priority_b
+                    .cmp(&priority_a)
                     .then_with(|| {
                         let res_a = a.metadata.dimensions.0 as u64 * a.metadata.dimensions.1 as u64;
                         let res_b = b.metadata.dimensions.0 as u64 * b.metadata.dimensions.1 as u64;

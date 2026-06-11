@@ -231,7 +231,8 @@ fn main() -> Result<(), slint::PlatformError> {
                     settings_mut.scan_detect_low_res = ui.get_detect_low_resolution();
                     settings_mut.scan_feature_detection = ui.get_enable_feature_detection();
                     settings_mut.scan_rename_to_guid = ui.get_rename_to_guid();
-                    settings_mut.scan_prefer_display_aspect_ratios = ui.get_prefer_display_aspect_ratios();
+                    settings_mut.scan_prefer_display_aspect_ratios =
+                        ui.get_prefer_display_aspect_ratios();
                     settings_mut.last_root_path = Some(root_text.clone());
                     save_settings(&settings_mut);
                 }
@@ -1150,22 +1151,22 @@ fn calculate_aspect_ratio(width: u32, height: u32) -> String {
     const RATIOS: &[(f32, &str)] = &[
         // Landscape
         (1.0, "1:1"),
-        (5.0/4.0, "5:4"),      // 1.25
-        (4.0/3.0, "4:3"),      // 1.333
-        (3.0/2.0, "3:2"),      // 1.5
-        (16.0/10.0, "16:10"), // 1.6
-        (5.0/3.0, "5:3"),      // 1.666
-        (16.0/9.0, "16:9"),    // 1.777
-        (21.0/9.0, "21:9"),    // 2.333
-        (2.39, "2.39:1"),      // 2.39, anamorphic
+        (5.0 / 4.0, "5:4"),     // 1.25
+        (4.0 / 3.0, "4:3"),     // 1.333
+        (3.0 / 2.0, "3:2"),     // 1.5
+        (16.0 / 10.0, "16:10"), // 1.6
+        (5.0 / 3.0, "5:3"),     // 1.666
+        (16.0 / 9.0, "16:9"),   // 1.777
+        (21.0 / 9.0, "21:9"),   // 2.333
+        (2.39, "2.39:1"),       // 2.39, anamorphic
         // Portrait
-        (4.0/5.0, "4:5"),
-        (3.0/4.0, "3:4"),
-        (2.0/3.0, "2:3"),
-        (10.0/16.0, "10:16"),
-        (3.0/5.0, "3:5"),
-        (9.0/16.0, "9:16"),
-        (9.0/21.0, "9:21"),
+        (4.0 / 5.0, "4:5"),
+        (3.0 / 4.0, "3:4"),
+        (2.0 / 3.0, "2:3"),
+        (10.0 / 16.0, "10:16"),
+        (3.0 / 5.0, "3:5"),
+        (9.0 / 16.0, "9:16"),
+        (9.0 / 21.0, "9:21"),
     ];
 
     let mut closest_ratio = "";
