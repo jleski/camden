@@ -134,7 +134,7 @@ pub fn merge_tags(all_tags: Vec<Vec<ImageTag>>, min_confidence: f32) -> Vec<Imag
         for tag in tags {
             tag_map
                 .entry(tag.name.clone())
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push(tag.confidence);
 
             // Keep first occurrence as prototype (for label, category)

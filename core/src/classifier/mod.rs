@@ -161,7 +161,7 @@ fn load_moderation_classifier(
         let model_configs: Vec<_> = config
             .active_moderation_models()
             .iter()
-            .filter_map(|model_config| {
+            .map(|model_config| {
                 let path = if model_config.path.is_absolute() {
                     model_config.path.clone()
                 } else {
@@ -172,7 +172,7 @@ fn load_moderation_classifier(
                     &model_config.output.labels,
                     model_config.output.format.as_deref(),
                 );
-                Some((path, mod_config))
+                (path, mod_config)
             })
             .collect();
 

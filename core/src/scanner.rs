@@ -1,8 +1,8 @@
-use crate::aspect_ratio::{get_aspect_ratio_priority, AspectRatioPriority};
 use crate::classifier::{self, ClassifierConfig, ImageClassifier};
 use crate::detector::{
     DetectorConfig, DuplicateDetector, ImageAnalysis, ImageFeatures, ImageMetadata, MatchResult,
 };
+use crate::keeper::{KeeperCandidate, KeeperPreferences};
 use crate::rename::ensure_guid_name;
 use crate::resolution::{resolution_tier, ResolutionTier};
 use crate::thumbnails::ThumbnailCache;
@@ -36,8 +36,9 @@ pub struct ScanConfig {
     pub enable_classification: bool,
     /// When true, enables feature-based detection using ORB + RANSAC (finds crops).
     pub enable_feature_detection: bool,
-    /// When true, prefers originals with standard display aspect ratios (e.g., 16:9).
-    pub prefer_display_aspect_ratios: bool,
+    /// When true, keeper selection prioritises ultrawide (21:9 / 9:21) images,
+    /// then Wide (between 16:9 and 21:9), then FHD (16:9 / 9:16).
+    pub prefer_ultrawide_aspect_ratios: bool,
 }
 
 impl ScanConfig {
@@ -51,7 +52,7 @@ impl ScanConfig {
             detect_low_resolution: false,
             enable_classification: false,
             enable_feature_detection: false,
-            prefer_display_aspect_ratios: false,
+            prefer_ultrawide_aspect_ratios: false,
         }
     }
 
@@ -80,9 +81,14 @@ impl ScanConfig {
         self
     }
 
-    pub fn with_prefer_display_aspect_ratios(mut self, enabled: bool) -> Self {
-        self.prefer_display_aspect_ratios = enabled;
+    pub fn with_prefer_ultrawide_aspect_ratios(mut self, enabled: bool) -> Self {
+        self.prefer_ultrawide_aspect_ratios = enabled;
         self
+    }
+
+    #[deprecated(note = "use with_prefer_ultrawide_aspect_ratios")]
+    pub fn with_prefer_display_aspect_ratios(self, enabled: bool) -> Self {
+        self.with_prefer_ultrawide_aspect_ratios(enabled)
     }
 }
 
@@ -521,25 +527,39 @@ fn group_records(
         groups
     };
 
-    // Phase 3: Sort entries within each group according to preferences
-    if config.prefer_display_aspect_ratios {
-        for group in &mut groups {
-            group.entries.sort_by(|a, b| {
-                let priority_a: AspectRatioPriority =
-                    get_aspect_ratio_priority(a.metadata.dimensions.0, a.metadata.dimensions.1);
-                let priority_b: AspectRatioPriority =
-                    get_aspect_ratio_priority(b.metadata.dimensions.0, b.metadata.dimensions.1);
-
-                priority_b
-                    .cmp(&priority_a)
-                    .then_with(|| {
-                        let res_a = a.metadata.dimensions.0 as u64 * a.metadata.dimensions.1 as u64;
-                        let res_b = b.metadata.dimensions.0 as u64 * b.metadata.dimensions.1 as u64;
-                        res_b.cmp(&res_a)
-                    })
-                    .then_with(|| b.metadata.size_bytes.cmp(&a.metadata.size_bytes))
-            });
-        }
+    // Phase 3: Sort entries within each group so that files[0] is always the keeper.
+    // This uses the shared keeper_ordering from core::keeper, parameterised by the
+    // prefer_ultrawide flag, so CLI and GUI both derive the same keeper deterministically.
+    let prefs = KeeperPreferences {
+        prefer_ultrawide_aspect_ratios: config.prefer_ultrawide_aspect_ratios,
+    };
+    for group in &mut groups {
+        group.entries.sort_by(|a, b| {
+            let ca = KeeperCandidate {
+                width: a.metadata.dimensions.0,
+                height: a.metadata.dimensions.1,
+                size_bytes: a.metadata.size_bytes,
+                date: a
+                    .metadata
+                    .captured_at
+                    .as_deref()
+                    .or(a.metadata.modified.as_deref()),
+                path: &a.path,
+            };
+            let cb = KeeperCandidate {
+                width: b.metadata.dimensions.0,
+                height: b.metadata.dimensions.1,
+                size_bytes: b.metadata.size_bytes,
+                date: b
+                    .metadata
+                    .captured_at
+                    .as_deref()
+                    .or(b.metadata.modified.as_deref()),
+                path: &b.path,
+            };
+            // Descending: keeper (maximum) first
+            crate::keeper::keeper_ordering(&cb, &ca, &prefs)
+        });
     }
 
     groups
@@ -625,16 +645,11 @@ fn merge_crop_groups(
             .unwrap()
             .source_dimensions;
 
-        for j in (i + 1)..groups.len() {
-            if groups[j].features.visual.is_none() {
+        for (j, group_j) in groups.iter().enumerate().skip(i + 1) {
+            if group_j.features.visual.is_none() {
                 continue;
             }
-            let dims_j = groups[j]
-                .features
-                .visual
-                .as_ref()
-                .unwrap()
-                .source_dimensions;
+            let dims_j = group_j.features.visual.as_ref().unwrap().source_dimensions;
 
             // Only compare if dimensions suggest possible crop relationship
             if could_be_crop_related(dims_i, dims_j) {
@@ -661,7 +676,7 @@ fn merge_crop_groups(
         .filter_map(|&(i, j)| {
             // Update progress periodically
             let count = progress_counter.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-            if count % 100 == 0 {
+            if count.is_multiple_of(100) {
                 progress_bar.set_position(count);
             }
 

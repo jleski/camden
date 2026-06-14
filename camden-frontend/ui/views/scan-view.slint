@@ -14,7 +14,7 @@ export component ScanView inherits Rectangle {
     in-out property <bool> detect-low-res: true;
     in-out property <bool> feature-detection: true;
     in-out property <bool> rename-to-guid: false;
-    in-out property <bool> prefer-display-aspect-ratios: false;
+    in-out property <bool> prefer-ultrawide-aspect-ratios: false;
 
     // Scan state
     in property <bool> scanning: false;
@@ -151,8 +151,8 @@ export component ScanView inherits Rectangle {
                         }
 
                         CheckBox {
-                            text: "Prefer display aspect ratios";
-                            checked <=> prefer-display-aspect-ratios;
+                            text: "Prefer ultrawide aspect ratios (21:9 / 9:21)";
+                            checked <=> prefer-ultrawide-aspect-ratios;
                             enabled: !scanning;
                         }
 

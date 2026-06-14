@@ -3,11 +3,15 @@
 /// Priority levels used to rank display-friendly aspect ratios.
 ///
 /// Ordering is intentional: higher variants are preferred during duplicate sorting.
+/// `Uhd` is the highest priority (21:9 / 9:21 ultrawide), followed by `Wide` (between 16:9 and
+/// 21:9), then `Fhd` (16:9 / 9:16), `Standard` (other common ratios), and `NonStandard`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum AspectRatioPriority {
     NonStandard,
     Standard,
     Fhd,
+    /// Ratios strictly between 16:9 and 21:9 (e.g., 2:1, 1.85:1).
+    Wide,
     Uhd,
 }
 
@@ -47,19 +51,18 @@ fn is_ratio_match(actual_ratio: f32, expected_ratio: (f32, f32)) -> bool {
 /// The ratio is normalized as `max(width, height) / min(width, height)` so portrait and
 /// landscape forms of the same ratio are treated equally.
 ///
+/// Priority order (highest first): `Uhd` (21:9) > `Wide` (between 16:9 and 21:9) >
+/// `Fhd` (16:9) > `Standard` (other common ratios) > `NonStandard`.
+///
 /// # Examples
 ///
 /// ```
 /// use camden_core::aspect_ratio::{get_aspect_ratio_priority, AspectRatioPriority};
 ///
-/// assert_eq!(
-///     get_aspect_ratio_priority(2560, 1080),
-///     AspectRatioPriority::Uhd
-/// );
-/// assert_eq!(
-///     get_aspect_ratio_priority(1080, 1920),
-///     AspectRatioPriority::Fhd
-/// );
+/// assert_eq!(get_aspect_ratio_priority(2560, 1080), AspectRatioPriority::Uhd);
+/// assert_eq!(get_aspect_ratio_priority(1080, 1920), AspectRatioPriority::Fhd);
+/// assert_eq!(get_aspect_ratio_priority(2000, 1000), AspectRatioPriority::Wide);
+/// assert_eq!(get_aspect_ratio_priority(1920, 1080), AspectRatioPriority::Fhd);
 /// ```
 pub fn get_aspect_ratio_priority(width: i32, height: i32) -> AspectRatioPriority {
     if width <= 0 || height <= 0 {
@@ -74,6 +77,15 @@ pub fn get_aspect_ratio_priority(width: i32, height: i32) -> AspectRatioPriority
 
     if is_ratio_match(normalized_ratio, FHD_ASPECT_RATIO) {
         return AspectRatioPriority::Fhd;
+    }
+
+    // Wide: strictly between FHD (16:9 ≈ 1.778) and UHD (21:9 ≈ 2.333), outside both tolerance bands.
+    let fhd_ratio = calculate_normalized_ratio(FHD_ASPECT_RATIO.0, FHD_ASPECT_RATIO.1);
+    let uhd_ratio = calculate_normalized_ratio(UHD_ASPECT_RATIO.0, UHD_ASPECT_RATIO.1);
+    let fhd_upper = fhd_ratio + ASPECT_RATIO_TOLERANCE;
+    let uhd_lower = uhd_ratio - ASPECT_RATIO_TOLERANCE;
+    if normalized_ratio > fhd_upper && normalized_ratio < uhd_lower {
+        return AspectRatioPriority::Wide;
     }
 
     for &(standard_width, standard_height) in STANDARD_ASPECT_RATIOS {
@@ -121,9 +133,50 @@ mod tests {
             get_aspect_ratio_priority(1000, 1000),
             AspectRatioPriority::Standard
         );
+        // 1000x999 ≈ 1.001:1, which is within tolerance of 1:1 → Standard
         assert_eq!(
             get_aspect_ratio_priority(1000, 999),
-            AspectRatioPriority::NonStandard
+            AspectRatioPriority::Standard
+        );
+    }
+
+    #[test]
+    fn wide_tier_detected() {
+        // 2000x1000 = 2.0:1 — strictly between 16:9 (1.778) and 21:9 (2.333)
+        assert_eq!(
+            get_aspect_ratio_priority(2000, 1000),
+            AspectRatioPriority::Wide
+        );
+        // Portrait equivalent
+        assert_eq!(
+            get_aspect_ratio_priority(1000, 2000),
+            AspectRatioPriority::Wide
+        );
+    }
+
+    #[test]
+    fn uhd_detected() {
+        // Landscape 21:9
+        assert_eq!(
+            get_aspect_ratio_priority(2560, 1080),
+            AspectRatioPriority::Uhd
+        );
+        // Portrait 9:21
+        assert_eq!(
+            get_aspect_ratio_priority(1080, 2560),
+            AspectRatioPriority::Uhd
+        );
+    }
+
+    #[test]
+    fn fhd_detected() {
+        assert_eq!(
+            get_aspect_ratio_priority(1920, 1080),
+            AspectRatioPriority::Fhd
+        );
+        assert_eq!(
+            get_aspect_ratio_priority(1080, 1920),
+            AspectRatioPriority::Fhd
         );
     }
 
@@ -133,8 +186,8 @@ mod tests {
         assert!(is_standard_aspect_ratio(1920, 1080));
         // Close to 16:9
         assert!(is_standard_aspect_ratio(1921, 1080));
-        // Not standard
-        assert!(!is_standard_aspect_ratio(1000, 999));
+        // 1000x999 ≈ 1.001:1, within tolerance of 1:1 → is standard
+        assert!(is_standard_aspect_ratio(1000, 999));
         // Exact 4:3
         assert!(is_standard_aspect_ratio(1024, 768));
         // Exact 3:2
@@ -146,5 +199,9 @@ mod tests {
         // Zero width or height
         assert!(!is_standard_aspect_ratio(0, 1080));
         assert!(!is_standard_aspect_ratio(1920, 0));
+        // Wide is >= Standard so it's also "standard"
+        assert!(is_standard_aspect_ratio(2000, 1000));
+        // UHD is >= Standard so it's also "standard"
+        assert!(is_standard_aspect_ratio(2560, 1080));
     }
 }

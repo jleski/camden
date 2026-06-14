@@ -38,13 +38,16 @@ export struct GroupData {
 }
 
 export component MainWindow inherits Window {
-    width: 1400px;
-    height: 900px;
+    preferred-width: 1400px;
+    preferred-height: 900px;
+    min-width: 900px;
+    min-height: 600px;
     title: "Camden Photo Manager";
     background: Theme.colors.bg_primary;
 
-    // Store window dimensions for responsive layouts
+    // Store window dimensions so child views can bind responsive layouts.
     property <length> content_width: self.width;
+    property <length> content_height: self.height;
 
     // Navigation state
     in-out property <int> active-tab: 0;
@@ -62,7 +65,7 @@ export component MainWindow inherits Window {
     in-out property <bool> detect_low_resolution: true;
     in-out property <bool> enable_classification: false;
     in-out property <bool> enable_feature_detection: true;
-    in-out property <bool> prefer_display_aspect_ratios: false;
+    in-out property <bool> prefer_ultrawide_aspect_ratios: false;
     in-out property <string> current_scan_file: "";
     in-out property <int> files_scanned: 0;
     in-out property <int> files_total: 0;
@@ -204,7 +207,7 @@ export component MainWindow inherits Window {
                 detect-low-res <=> detect_low_resolution;
                 feature-detection <=> enable_feature_detection;
                 rename-to-guid <=> rename_to_guid;
-                prefer-display-aspect-ratios <=> prefer_display_aspect_ratios;
+                prefer-ultrawide-aspect-ratios <=> prefer_ultrawide_aspect_ratios;
                 scanning: scanning;
                 progress: scan_progress;
                 current-file: current_scan_file;
@@ -219,14 +222,20 @@ export component MainWindow inherits Window {
                 start-scan => { scan_requested(); }
             }
 
-            // Duplicates View (tab 1)
-            if active-tab == 1 : DuplicatesView {
+            // Duplicates View (tab 1) - kept alive via `visible` instead of `if` so the
+            // component is never destroyed on tab switches. This preserves scroll position,
+            // zoom state, and avoids the cost of re-instantiating the full group grid.
+            DuplicatesView {
+                x: 0;
+                y: 0;
                 width: 100%;
                 height: 100%;
+                visible: active-tab == 1;
                 groups: duplicate_groups;
                 stats: duplicate_stats;
                 zoom-level <=> zoom_level;
-                parent_width: content_width;
+                parent-width: content_width;
+                parent-height: content_height;
 
                 file-toggled(gi, fi) => { file_toggled(gi, fi); }
                 select-all-best => { select_all_best(); }
@@ -235,10 +244,15 @@ export component MainWindow inherits Window {
                 archive-others-in-group(gi) => { archive_others_in_group(gi); }
             }
 
-            // Gallery View (tab 2)
-            if active-tab == 2 : GalleryView {
+            // Gallery View (tab 2) - kept alive via `visible` instead of `if` so the
+            // component is never destroyed on tab switches. This preserves scroll position,
+            // zoom state, and avoids the cost of re-instantiating the full photo grid.
+            GalleryView {
+                x: 0;
+                y: 0;
                 width: 100%;
                 height: 100%;
+                visible: active-tab == 2;
                 photos: gallery_photos;
                 stats: gallery_stats;
                 show-landscape <=> filter_show_landscape;

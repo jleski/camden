@@ -1,6 +1,9 @@
 import { Button } from "std-widgets.slint";
 import { Theme } from "./theme.slint";
 
+/// Zoom slider with +/- buttons, a draggable track, and a percentage label.
+///
+/// `zoom-level` is bound bidirectionally by the parent view; range is 100–400.
 export component ZoomSlider inherits Rectangle {
     in-out property <float> zoom-level: 100.0;
     property <float> min-value: 100.0;
@@ -21,20 +24,23 @@ export component ZoomSlider inherits Rectangle {
         padding-right: 12px;
         spacing: 8px;
 
-        Rectangle {
-            horizontal-stretch: 1;
+        // "Zoom:" label
+        Text {
+            text: "Zoom:";
+            font-size: 10pt;
+            color: Theme.colors.text_secondary;
+            vertical-alignment: center;
         }
 
         Button {
             text: "-";
             width: 32px;
             clicked => {
-                if zoom-level > min-value {
-                    zoom-level = max(min-value, zoom-level - step-size);
-                }
+                zoom-level = max(min-value, zoom-level - step-size);
             }
         }
 
+        // Percentage label
         Rectangle {
             width: 50px;
             height: 100%;
@@ -48,10 +54,12 @@ export component ZoomSlider inherits Rectangle {
             }
         }
 
-        Rectangle {
+        // Draggable slider track
+        track-area := Rectangle {
             width: 150px;
             height: 100%;
 
+            // Track background
             Rectangle {
                 width: 100%;
                 y: (parent.height - 4px) / 2;
@@ -59,6 +67,7 @@ export component ZoomSlider inherits Rectangle {
                 border-radius: 2px;
                 background: Theme.colors.bg_secondary;
 
+                // Filled portion
                 Rectangle {
                     width: normalized * parent.width;
                     height: 100%;
@@ -67,6 +76,7 @@ export component ZoomSlider inherits Rectangle {
                 }
             }
 
+            // Thumb
             Rectangle {
                 width: 12px;
                 height: 12px;
@@ -78,10 +88,23 @@ export component ZoomSlider inherits Rectangle {
                 border-color: white;
             }
 
+            // Touch area that handles drag to set zoom level directly.
             TouchArea {
                 width: 100%;
                 height: 100%;
                 mouse-cursor: pointer;
+                pointer-event(ev) => {
+                    if ev.button == PointerEventButton.left && ev.kind == PointerEventKind.down {
+                        zoom-level = clamp(min-value + (self.mouse-x / track-area.width) * range,
+                            min-value, max-value);
+                    }
+                }
+                moved => {
+                    if self.pressed {
+                        zoom-level = clamp(min-value + (self.mouse-x / track-area.width) * range,
+                            min-value, max-value);
+                    }
+                }
             }
         }
 
@@ -89,10 +112,21 @@ export component ZoomSlider inherits Rectangle {
             text: "+";
             width: 32px;
             clicked => {
-                if zoom-level < max-value {
-                    zoom-level = min(max-value, zoom-level + step-size);
-                }
+                zoom-level = min(max-value, zoom-level + step-size);
             }
+        }
+
+        // Reset to 100%
+        Button {
+            text: "1:1";
+            width: 36px;
+            clicked => {
+                zoom-level = 100.0;
+            }
+        }
+
+        Rectangle {
+            horizontal-stretch: 1;
         }
     }
 }

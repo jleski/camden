@@ -9,6 +9,7 @@ pub mod aspect_ratio;
 #[cfg(feature = "classification")]
 pub mod classifier;
 pub mod detector;
+pub mod keeper;
 pub mod operations;
 pub mod progress;
 pub mod rename;
@@ -18,6 +19,7 @@ pub mod scanner;
 pub mod snapshot;
 pub mod thumbnails;
 
+pub use keeper::{keeper_ordering, select_keeper_index, KeeperCandidate, KeeperPreferences};
 pub use operations::{move_duplicates, move_paths, MoveError, MoveStats};
 pub use rename::{ensure_guid_name, is_guid_named, RenameError};
 pub use reporting::{print_duplicates, write_classification_report, write_json};

@@ -555,20 +555,15 @@ pub struct EnsembleModerationClassifier {
 }
 
 /// Strategy for aggregating results from multiple models.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Default)]
 pub enum AggregationStrategy {
-    /// Average probability scores across all models
+    /// Average probability scores across all models (default).
+    #[default]
     Average,
     /// Use the maximum (most conservative) tier across all models
     MaxTier,
     /// Use weighted average with configurable weights per model
     Weighted,
-}
-
-impl Default for AggregationStrategy {
-    fn default() -> Self {
-        Self::Average
-    }
 }
 
 impl EnsembleModerationClassifier {

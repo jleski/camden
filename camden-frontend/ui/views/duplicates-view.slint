@@ -3,6 +3,7 @@
 import { Button, ScrollView, CheckBox } from "std-widgets.slint";
 import { PhotoData, PhotoCard } from "../components/photo-card.slint";
 import { ResolutionBadge, ModerationBadge } from "../components/badge.slint";
+import { ZoomSlider } from "../components/zoom-slider.slint";
 import { Theme } from "../components/theme.slint";
 
 
@@ -193,7 +194,10 @@ export component DuplicatesView inherits Rectangle {
     in-out property <bool> show-pairs: true;
     in-out property <bool> show-multi: true;
     in-out property <float> zoom-level: 100.0;  // 100% = 1x, up to 400% = 4x
-    in-out property <length> parent_width: 0px;
+
+    /// Parent window dimensions — set by MainWindow to drive responsive layout.
+    in property <length> parent-width: 0px;
+    in property <length> parent-height: 0px;
 
     callback file-toggled(int, int);
     callback select-all-best();
@@ -202,8 +206,12 @@ export component DuplicatesView inherits Rectangle {
     callback archive-others-in-group(int);
 
     // Responsive state
-    property <bool> sidebar_expanded: (parent_width / 1px) > 900.0;
+    property <bool> sidebar_expanded: (parent-width / 1px) > 900.0;
     property <length> sidebar_width: sidebar_expanded ? 220px : 0px;
+
+    /// Scale factor based on window width — keeps fonts and paddings proportional.
+    /// Clamped to [0.85, 1.4] so the UI never becomes unreadably small or absurdly large.
+    property <float> ui_scale: clamp(parent-width / 1400px, 0.85, 1.4);
 
     background: Theme.colors.bg_secondary;
 
@@ -216,33 +224,33 @@ export component DuplicatesView inherits Rectangle {
             border-color: Theme.colors.border_default;
 
             VerticalLayout {
-                padding: 16px;
-                spacing: 16px;
+                padding: 16px * ui_scale;
+                spacing: 16px * ui_scale;
 
                 // Stats section
                 Text {
                     text: "SUMMARY";
-                    font-size: 10pt;
+                    font-size: 10pt * ui_scale;
                     font-weight: 700;
                     color: Theme.colors.text_secondary;
                     letter-spacing: 1px;
                 }
 
                 VerticalLayout {
-                    spacing: 8px;
+                    spacing: 8px * ui_scale;
 
                     // Groups stat
                     HorizontalLayout {
                         Text {
                             text: "Groups";
-                            font-size: 10pt;
+                            font-size: 10pt * ui_scale;
                             color: Theme.colors.text_secondary;
                             horizontal-stretch: 1;
                         }
 
                         Text {
                             text: stats.total_groups;
-                            font-size: 10pt;
+                            font-size: 10pt * ui_scale;
                             font-weight: 600;
                             color: Theme.colors.text_primary;
                         }
@@ -252,14 +260,14 @@ export component DuplicatesView inherits Rectangle {
                     HorizontalLayout {
                         Text {
                             text: "Duplicates";
-                            font-size: 10pt;
+                            font-size: 10pt * ui_scale;
                             color: Theme.colors.text_secondary;
                             horizontal-stretch: 1;
                         }
 
                         Text {
                             text: stats.total_duplicates;
-                            font-size: 10pt;
+                            font-size: 10pt * ui_scale;
                             font-weight: 600;
                             color: Theme.colors.accent_warning;
                         }
@@ -269,14 +277,14 @@ export component DuplicatesView inherits Rectangle {
                     HorizontalLayout {
                         Text {
                             text: "Reclaimable";
-                            font-size: 10pt;
+                            font-size: 10pt * ui_scale;
                             color: Theme.colors.text_secondary;
                             horizontal-stretch: 1;
                         }
 
                         Text {
                             text: round(stats.reclaimable_mb * 10) / 10 + " MB";
-                            font-size: 10pt;
+                            font-size: 10pt * ui_scale;
                             font-weight: 600;
                             color: Theme.colors.accent_success;
                         }
@@ -286,14 +294,14 @@ export component DuplicatesView inherits Rectangle {
                     HorizontalLayout {
                         Text {
                             text: "Selected";
-                            font-size: 10pt;
+                            font-size: 10pt * ui_scale;
                             color: Theme.colors.text_secondary;
                             horizontal-stretch: 1;
                         }
 
                         Text {
                             text: stats.selected_count;
-                            font-size: 10pt;
+                            font-size: 10pt * ui_scale;
                             font-weight: 600;
                             color: Theme.colors.accent_primary;
                         }
@@ -307,7 +315,7 @@ export component DuplicatesView inherits Rectangle {
                 // Filter section
                 Text {
                     text: "SHOW";
-                    font-size: 10pt;
+                    font-size: 10pt * ui_scale;
                     font-weight: 700;
                     color: Theme.colors.text_secondary;
                     letter-spacing: 1px;
@@ -334,7 +342,7 @@ export component DuplicatesView inherits Rectangle {
                 // Actions section
                 Text {
                     text: "ACTIONS";
-                    font-size: 10pt;
+                    font-size: 10pt * ui_scale;
                     font-weight: 700;
                     color: Theme.colors.text_secondary;
                     letter-spacing: 1px;
@@ -371,11 +379,11 @@ export component DuplicatesView inherits Rectangle {
             horizontal-stretch: 1;
 
             VerticalLayout {
-                padding-top: 16px;
-                padding-left: 16px;
-                padding-right: 16px;
+                padding-top: 16px * ui_scale;
+                padding-left: 16px * ui_scale;
+                padding-right: 16px * ui_scale;
                 padding-bottom: 0px;
-                spacing: 12px; // Added spacing here
+                spacing: 12px * ui_scale;
                 vertical-stretch: 1;
 
                 Rectangle {
@@ -389,11 +397,11 @@ export component DuplicatesView inherits Rectangle {
 
                         // Header
                         HorizontalLayout {
-                            spacing: 12px;
+                            spacing: 12px * ui_scale;
 
                             Text {
                                 text: "Duplicate Groups";
-                                font-size: 16pt;
+                                font-size: 16pt * ui_scale;
                                 font-weight: 600;
                                 color: Theme.colors.text_primary;
                                 vertical-alignment: center;
@@ -454,35 +462,60 @@ export component DuplicatesView inherits Rectangle {
                             }
                         }
 
-                        if groups.length > 0: ScrollView {
+                        // Zoom toolbar
+                        ZoomSlider {
+                            zoom-level <=> zoom-level;
+                            horizontal-stretch: 1;
+                        }
+
+                        if groups.length > 0: Rectangle {
                             horizontal-stretch: 1;
                             vertical-stretch: 1;
 
-                            // Layout helpers
-                            property <length> card_base_height: 260px;
-                            property <length> card_chrome_height: 100px;
-                            property <length> card_display_height: (card_base_height / 1px) * (zoom-level / 100.0) * 1px;
-                            property <length> card_height: card_display_height + card_chrome_height;
-                            property <length> card_spacing: 12px;
-                            property <length> content_height: groups.length * card_height + (max(0, groups.length - 1)) * card_spacing;
-                            viewport-height: content_height;
+                            // Mouse-wheel zoom over the preview area.
+                            TouchArea {
+                                width: 100%;
+                                height: 100%;
+                                // Forward unhandled pointer events so clicks on cards still work.
+                                scroll-event(ev) => {
+                                    if ev.delta-y != 0 {
+                                        zoom-level = clamp(zoom-level - (ev.delta-y / 1px) / 3.0, 100.0, 400.0);
+                                        return EventResult.accept;
+                                    }
+                                    EventResult.reject
+                                }
+                            }
 
-                            Rectangle {
-                                height: content_height;
-                                for group[group-index] in groups: DuplicateGroupCard {
-                                    y: group-index * (card_height + card_spacing);
-                                    width: 100%;
-                                    group: group;
-                                    group-index: group-index;
-                                    zoom-level: zoom-level;
-                                    file-toggled(gi, fi) => {
-                                        file-toggled(gi, fi);
-                                    }
-                                    select-best(gi) => {
-                                        select-best-in-group(gi);
-                                    }
-                                    archive-others(gi) => {
-                                        archive-others-in-group(gi);
+                            ScrollView {
+                                width: 100%;
+                                height: 100%;
+
+                                // Layout helpers
+                                property <length> card_base_height: 260px;
+                                property <length> card_chrome_height: 100px;
+                                property <length> card_display_height: (card_base_height / 1px) * (zoom-level / 100.0) * 1px;
+                                property <length> card_height: card_display_height + card_chrome_height;
+                                property <length> card_spacing: 12px;
+                                property <length> content_height: groups.length * card_height + (max(0, groups.length - 1)) * card_spacing;
+                                viewport-height: content_height;
+
+                                Rectangle {
+                                    height: content_height;
+                                    for group[group-index] in groups: DuplicateGroupCard {
+                                        y: group-index * (card_height + card_spacing);
+                                        width: 100%;
+                                        group: group;
+                                        group-index: group-index;
+                                        zoom-level: zoom-level;
+                                        file-toggled(gi, fi) => {
+                                            file-toggled(gi, fi);
+                                        }
+                                        select-best(gi) => {
+                                            select-best-in-group(gi);
+                                        }
+                                        archive-others(gi) => {
+                                            archive-others-in-group(gi);
+                                        }
                                     }
                                 }
                             }
