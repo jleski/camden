@@ -20,7 +20,7 @@ pub struct CliConfig {
     pub detect_low_resolution: bool,
     pub enable_classification: bool,
     pub enable_feature_detection: bool,
-    pub prefer_display_aspect_ratios: bool,
+    pub prefer_ultrawide_aspect_ratios: bool,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -34,7 +34,7 @@ pub struct PreviewConfig {
     pub detect_low_resolution: bool,
     pub enable_classification: bool,
     pub enable_feature_detection: bool,
-    pub prefer_display_aspect_ratios: bool,
+    pub prefer_ultrawide_aspect_ratios: bool,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -65,7 +65,7 @@ impl Command {
             Some(first) => {
                 let mut rest = vec![first];
                 rest.extend(args);
-                CliConfig::from_iter(rest.into_iter()).map(Command::Scan)
+                CliConfig::from_iter(rest).map(Command::Scan)
             }
             None => Err(CliError::Help),
         }
@@ -91,7 +91,7 @@ impl CliConfig {
         let mut detect_low_resolution = false;
         let mut enable_classification = false;
         let mut enable_feature_detection = false;
-        let mut prefer_display_aspect_ratios = false;
+        let mut prefer_ultrawide_aspect_ratios = false;
 
         for arg in args.by_ref() {
             if arg.starts_with("--") {
@@ -115,8 +115,10 @@ impl CliConfig {
                     enable_feature_detection = true;
                     continue;
                 }
-                if arg == "--prefer-display-aspect-ratios" {
-                    prefer_display_aspect_ratios = true;
+                if arg == "--prefer-ultrawide-aspect-ratios"
+                    || arg == "--prefer-display-aspect-ratios"
+                {
+                    prefer_ultrawide_aspect_ratios = true;
                     continue;
                 }
                 if let Some(value) = arg.strip_prefix("--target=") {
@@ -154,7 +156,7 @@ impl CliConfig {
             detect_low_resolution,
             enable_classification,
             enable_feature_detection,
-            prefer_display_aspect_ratios,
+            prefer_ultrawide_aspect_ratios,
         })
     }
 }
@@ -172,7 +174,7 @@ impl PreviewConfig {
         let mut detect_low_resolution = false;
         let mut enable_classification = false;
         let mut enable_feature_detection = false;
-        let mut prefer_display_aspect_ratios = false;
+        let mut prefer_ultrawide_aspect_ratios = false;
 
         for arg in args.by_ref() {
             if arg.starts_with("--") {
@@ -196,8 +198,10 @@ impl PreviewConfig {
                     enable_feature_detection = true;
                     continue;
                 }
-                if arg == "--prefer-display-aspect-ratios" {
-                    prefer_display_aspect_ratios = true;
+                if arg == "--prefer-ultrawide-aspect-ratios"
+                    || arg == "--prefer-display-aspect-ratios"
+                {
+                    prefer_ultrawide_aspect_ratios = true;
                     continue;
                 }
                 if let Some(value) = arg.strip_prefix("--root=") {
@@ -230,7 +234,7 @@ impl PreviewConfig {
 
         let root = root.ok_or(CliError::MissingRoot)?;
         let output = output
-            .or_else(|| camden_core::default_snapshot_path())
+            .or_else(camden_core::default_snapshot_path)
             .ok_or(CliError::MissingOutput)?;
 
         Ok(Self {
@@ -243,7 +247,7 @@ impl PreviewConfig {
             detect_low_resolution,
             enable_classification,
             enable_feature_detection,
-            prefer_display_aspect_ratios,
+            prefer_ultrawide_aspect_ratios,
         })
     }
 
@@ -296,7 +300,8 @@ COMMON OPTIONS:
     --classify                  Alias for --enable-classification
     --enable-feature-detection  Enable feature-based detection for crops (slower)
     --feature-detection         Alias for --enable-feature-detection
-    --prefer-display-aspect-ratios Prefer originals with standard aspect ratios (e.g., 16:9)
+    --prefer-ultrawide-aspect-ratios Prefer ultrawide (21:9 / 9:21) images as keepers
+    --prefer-display-aspect-ratios   Deprecated alias for --prefer-ultrawide-aspect-ratios
     -h, --help                  Show this help message
     -V, --version               Show version information
 
@@ -396,5 +401,32 @@ mod tests {
     fn preview_requires_root() {
         let result = Command::from_iter(vec![String::from("preview-scan")]);
         assert!(matches!(result, Err(CliError::MissingRoot)));
+    }
+
+    #[test]
+    fn prefer_ultrawide_flag_sets_field() {
+        let command = Command::from_iter(vec![
+            String::from("./images"),
+            String::from("--prefer-ultrawide-aspect-ratios"),
+        ])
+        .unwrap();
+        match command {
+            Command::Scan(config) => assert!(config.prefer_ultrawide_aspect_ratios),
+            _ => panic!("expected scan command"),
+        }
+    }
+
+    #[test]
+    fn prefer_display_alias_still_parses() {
+        // Legacy flag --prefer-display-aspect-ratios must remain accepted.
+        let command = Command::from_iter(vec![
+            String::from("./images"),
+            String::from("--prefer-display-aspect-ratios"),
+        ])
+        .unwrap();
+        match command {
+            Command::Scan(config) => assert!(config.prefer_ultrawide_aspect_ratios),
+            _ => panic!("expected scan command"),
+        }
     }
 }

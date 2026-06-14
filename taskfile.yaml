@@ -7,16 +7,16 @@ env:
   RUSTFLAGS: "-C target-feature=+crt-static"
 
 includes:
-  opencv: 
+  opencv:
     taskfile: taskfiles/opencv.yaml
     flatten: true
-  build: 
+  build:
     taskfile: taskfiles/build.yaml
     flatten: true
-  deps: 
+  deps:
     taskfile: taskfiles/deps.yaml
     flatten: true
-  version: 
+  version:
     taskfile: taskfiles/version.yaml
     flatten: true
 

@@ -4,486 +4,486 @@ tasks:
   deps:
     desc: Install all development dependencies
     cmds:
-      - scoop install llvm
+      - scoop install llvm; scoop update llvm
       - task: install-opencv-static
 
-  deps-onnxruntime:
-    silent: true
-    desc: Download ONNX Runtime from GitHub releases to .vendor/onnxruntime
-    vars:
-      ORT_VERSION: "1.23.2"
-    cmds:
-      - |
-        if [ -d ".vendor/onnxruntime" ]; then
-          echo "ONNX Runtime is already installed."
-        else
-          echo "Downloading ONNX Runtime {{.ORT_VERSION}}..."
-          mkdir -p .vendor
-          curl --ssl-no-revoke -L -o onnxruntime.zip \
-            "https://github.com/microsoft/onnxruntime/releases/download/v{{.ORT_VERSION}}/onnxruntime-win-x64-{{.ORT_VERSION}}.zip"
-          
-          echo "Extracting ONNX Runtime..."
-          7z x onnxruntime.zip -o.vendor
-          mv ".vendor/onnxruntime-win-x64-{{.ORT_VERSION}}" .vendor/onnxruntime
-          rm onnxruntime.zip
-          
-          echo "ONNX Runtime {{.ORT_VERSION}} installed to .vendor/onnxruntime"
-          echo "Contents:"
-          ls -la .vendor/onnxruntime/lib/
-        fi
+  # deps-onnxruntime:
+  #   silent: true
+  #   desc: Download ONNX Runtime from GitHub releases to .vendor/onnxruntime
+  #   vars:
+  #     ORT_VERSION: "1.23.2"
+  #   cmds:
+  #     - |
+  #       if [ -d ".vendor/onnxruntime" ]; then
+  #         echo "ONNX Runtime is already installed."
+  #       else
+  #         echo "Downloading ONNX Runtime {{.ORT_VERSION}}..."
+  #         mkdir -p .vendor
+  #         curl --ssl-no-revoke -L -o onnxruntime.zip \
+  #           "https://github.com/microsoft/onnxruntime/releases/download/v{{.ORT_VERSION}}/onnxruntime-win-x64-{{.ORT_VERSION}}.zip"
 
-  deps-models:
-    deps: [ deps-onnxruntime ]
-    silent: true
-    desc: Download AI classification models to .vendor/models
-    cmds:
-      - |
-        if [ -d ".vendor/models" ]; then
-          echo "Models directory exists."
-        else
-          mkdir -p .vendor/models
-        fi
-        
-        # MobileNetV2 - Image tagging (ImageNet 1000 classes)
-        if [ -f ".vendor/models/mobilenetv2-12.onnx" ]; then
-          echo "[1/2] MobileNetV2 tagging model: already downloaded."
-        else
-          echo "[1/2] Downloading MobileNetV2 tagging model (~14MB)..."
-          curl --ssl-no-revoke -L -o ".vendor/models/mobilenetv2-12.onnx" \
-            "https://github.com/onnx/models/raw/main/validated/vision/classification/mobilenet/model/mobilenetv2-12.onnx"
-        fi
-        
-        # GantMan NSFW Model (ONNX) - 5-class moderation
-        # Classes: drawings, hentai, neutral, porn, sexy
-        # Converted from https://github.com/GantMan/nsfw_model
-        if [ -f ".vendor/models/nsfw-inception-v3.onnx" ]; then
-          echo "[2/2] NSFW moderation model: already downloaded."
-        else
-          echo "[2/2] Downloading NSFW moderation model (~85MB)..."
-          curl --ssl-no-revoke -L -o ".vendor/models/nsfw-inception-v3.onnx" \
-            "https://github.com/iola1999/nsfw-detect-onnx/releases/download/v1.0.0/model.onnx"
-        fi
-        
-        echo ""
-        echo "Models ready in: .vendor/models/"
-        echo "  - mobilenetv2-12.onnx      (tagging)"
-        echo "  - nsfw-inception-v3.onnx   (moderation)"
-        echo ""
-        echo "For additional models, run: task deps-models-extra"
-      - task: deps-models-extra
-      - task: deps-models-hf
+  #         echo "Extracting ONNX Runtime..."
+  #         7z x onnxruntime.zip -o.vendor
+  #         mv ".vendor/onnxruntime-win-x64-{{.ORT_VERSION}}" .vendor/onnxruntime
+  #         rm onnxruntime.zip
 
-  deps-models-extra:
-    silent: true
-    desc: Download additional AI models (EfficientNet, ResNet)
-    cmds:
-      - |
-        mkdir -p .vendor/models
-        
-        # EfficientNet-Lite4 - Higher accuracy tagging (~50MB)
-        if [ -f ".vendor/models/efficientnet-lite4-11.onnx" ]; then
-          echo "[1/2] EfficientNet-Lite4: already downloaded."
-        else
-          echo "[1/2] Downloading EfficientNet-Lite4 (~50MB)..."
-          curl --ssl-no-revoke -L -o ".vendor/models/efficientnet-lite4-11.onnx" \
-            "https://github.com/onnx/models/raw/main/validated/vision/classification/efficientnet-lite4/model/efficientnet-lite4-11.onnx"
-        fi
-        
-        # ResNet-50 - Classic architecture (~100MB)
-        if [ -f ".vendor/models/resnet50-v2-7.onnx" ]; then
-          echo "[2/2] ResNet-50: already downloaded."
-        else
-          echo "[2/2] Downloading ResNet-50 (~100MB)..."
-          curl --ssl-no-revoke -L -o ".vendor/models/resnet50-v2-7.onnx" \
-            "https://github.com/onnx/models/raw/main/validated/vision/classification/resnet/model/resnet50-v2-7.onnx"
-        fi
-        
-        echo ""
-        echo "Extra models downloaded to .vendor/models/"
-        echo "  - efficientnet-lite4-11.onnx  (higher accuracy tagging)"
-        echo "  - resnet50-v2-7.onnx          (classic ResNet)"
-        echo ""
-        echo "To use these models, update camden-classifier.toml:"
-        echo "  active_tagging = \"efficientnet-lite4\"  # or \"resnet50\""
+  #         echo "ONNX Runtime {{.ORT_VERSION}} installed to .vendor/onnxruntime"
+  #         echo "Contents:"
+  #         ls -la .vendor/onnxruntime/lib/
+  #       fi
 
-  deps-models-hf:
-    silent: true
-    desc: Download pre-converted ONNX models from Hugging Face
-    cmds:
-      - |
-        mkdir -p .vendor/models
+  # deps-models:
+  #   deps: [ deps-onnxruntime ]
+  #   silent: true
+  #   desc: Download AI classification models to .vendor/models
+  #   cmds:
+  #     - |
+  #       if [ -d ".vendor/models" ]; then
+  #         echo "Models directory exists."
+  #       else
+  #         mkdir -p .vendor/models
+  #       fi
 
-        echo "Downloading pre-converted ONNX models from Hugging Face..."
-        echo ""
+  #       # MobileNetV2 - Image tagging (ImageNet 1000 classes)
+  #       if [ -f ".vendor/models/mobilenetv2-12.onnx" ]; then
+  #         echo "[1/2] MobileNetV2 tagging model: already downloaded."
+  #       else
+  #         echo "[1/2] Downloading MobileNetV2 tagging model (~14MB)..."
+  #         curl --ssl-no-revoke -L -o ".vendor/models/mobilenetv2-12.onnx" \
+  #           "https://github.com/onnx/models/raw/main/validated/vision/classification/mobilenet/model/mobilenetv2-12.onnx"
+  #       fi
 
-        # ============ TAGGING MODELS ============
+  #       # GantMan NSFW Model (ONNX) - 5-class moderation
+  #       # Classes: drawings, hentai, neutral, porn, sexy
+  #       # Converted from https://github.com/GantMan/nsfw_model
+  #       if [ -f ".vendor/models/nsfw-inception-v3.onnx" ]; then
+  #         echo "[2/2] NSFW moderation model: already downloaded."
+  #       else
+  #         echo "[2/2] Downloading NSFW moderation model (~85MB)..."
+  #         curl --ssl-no-revoke -L -o ".vendor/models/nsfw-inception-v3.onnx" \
+  #           "https://github.com/iola1999/nsfw-detect-onnx/releases/download/v1.0.0/model.onnx"
+  #       fi
 
-        if [ -f ".vendor/models/vit-base-224.onnx" ]; then
-          echo "[tagging] ViT-base-224 (ImageNet): already downloaded."
-        else
-          echo "[tagging] Downloading ViT-base-224 (347MB)..."
-          curl --ssl-no-revoke -L -o ".vendor/models/vit-base-224.onnx" \
-            "https://huggingface.co/Xenova/vit-base-patch16-224/resolve/main/onnx/model.onnx"
-        fi
+  #       echo ""
+  #       echo "Models ready in: .vendor/models/"
+  #       echo "  - mobilenetv2-12.onnx      (tagging)"
+  #       echo "  - nsfw-inception-v3.onnx   (moderation)"
+  #       echo ""
+  #       echo "For additional models, run: task deps-models-extra"
+  #     - task: deps-models-extra
+  #     - task: deps-models-hf
 
-        if [ -f ".vendor/models/vit-base-224-q8.onnx" ]; then
-          echo "[tagging] ViT-base-224 quantized: already downloaded."
-        else
-          echo "[tagging] Downloading ViT-base-224 quantized (88MB)..."
-          curl --ssl-no-revoke -L -o ".vendor/models/vit-base-224-q8.onnx" \
-            "https://huggingface.co/Xenova/vit-base-patch16-224/resolve/main/onnx/model_quantized.onnx"
-        fi
+  # deps-models-extra:
+  #   silent: true
+  #   desc: Download additional AI models (EfficientNet, ResNet)
+  #   cmds:
+  #     - |
+  #       mkdir -p .vendor/models
 
-        if [ -f ".vendor/models/wd-tags.csv" ]; then
-          echo "[tagging] WD tag list already downloaded."
-        else
-          echo "[tagging] Downloading WD tag list..."
-          curl --ssl-no-revoke -L -o ".vendor/models/wd-tags.csv" \
-            "https://huggingface.co/SmilingWolf/wd-vit-tagger-v3/resolve/main/selected_tags.csv"
-        fi
+  #       # EfficientNet-Lite4 - Higher accuracy tagging (~50MB)
+  #       if [ -f ".vendor/models/efficientnet-lite4-11.onnx" ]; then
+  #         echo "[1/2] EfficientNet-Lite4: already downloaded."
+  #       else
+  #         echo "[1/2] Downloading EfficientNet-Lite4 (~50MB)..."
+  #         curl --ssl-no-revoke -L -o ".vendor/models/efficientnet-lite4-11.onnx" \
+  #           "https://github.com/onnx/models/raw/main/validated/vision/classification/efficientnet-lite4/model/efficientnet-lite4-11.onnx"
+  #       fi
 
-        if [ -f ".vendor/models/wd-vit-tagger-v3.onnx" ]; then
-          echo "[tagging] WD ViT Tagger V3 already downloaded."
-        else
-          echo "[tagging] Downloading WD ViT Tagger V3..."
-          curl --ssl-no-revoke -L -o ".vendor/models/wd-vit-tagger-v3.onnx" \
-            "https://huggingface.co/SmilingWolf/wd-vit-tagger-v3/resolve/main/model.onnx"
-        fi
+  #       # ResNet-50 - Classic architecture (~100MB)
+  #       if [ -f ".vendor/models/resnet50-v2-7.onnx" ]; then
+  #         echo "[2/2] ResNet-50: already downloaded."
+  #       else
+  #         echo "[2/2] Downloading ResNet-50 (~100MB)..."
+  #         curl --ssl-no-revoke -L -o ".vendor/models/resnet50-v2-7.onnx" \
+  #           "https://github.com/onnx/models/raw/main/validated/vision/classification/resnet/model/resnet50-v2-7.onnx"
+  #       fi
 
-        if [ -f ".vendor/models/wd-vit-large-tagger-v3.onnx" ]; then
-          echo "[tagging] WD ViT Large Tagger V3 already downloaded."
-        else
-          echo "[tagging] Downloading WD ViT Large Tagger V3..."
-          curl --ssl-no-revoke -L -o ".vendor/models/wd-vit-large-tagger-v3.onnx" \
-            "https://huggingface.co/SmilingWolf/wd-vit-large-tagger-v3/resolve/main/model.onnx"
-        fi
+  #       echo ""
+  #       echo "Extra models downloaded to .vendor/models/"
+  #       echo "  - efficientnet-lite4-11.onnx  (higher accuracy tagging)"
+  #       echo "  - resnet50-v2-7.onnx          (classic ResNet)"
+  #       echo ""
+  #       echo "To use these models, update camden-classifier.toml:"
+  #       echo "  active_tagging = \"efficientnet-lite4\"  # or \"resnet50\""
 
-        if [ -f ".vendor/models/wd-swinv2-tagger-v3.onnx" ]; then
-          echo "[tagging] WD SwinV2 Tagger V3 already downloaded."
-        else
-          echo "[tagging] Downloading WD SwinV2 Tagger V3..."
-          curl --ssl-no-revoke -L -o ".vendor/models/wd-swinv2-tagger-v3.onnx" \
-            "https://huggingface.co/SmilingWolf/wd-swinv2-tagger-v3/resolve/main/model.onnx"
-        fi
+  # deps-models-hf:
+  #   silent: true
+  #   desc: Download pre-converted ONNX models from Hugging Face
+  #   cmds:
+  #     - |
+  #       mkdir -p .vendor/models
 
-        if [ -f ".vendor/models/wd-eva02-large-tagger-v3.onnx" ]; then
-          echo "[tagging] WD EVA02 Large Tagger V3 already downloaded."
-        else
-          echo "[tagging] Downloading WD EVA02 Large Tagger V3..."
-          curl --ssl-no-revoke -L -o ".vendor/models/wd-eva02-large-tagger-v3.onnx" \
-            "https://huggingface.co/SmilingWolf/wd-eva02-large-tagger-v3/resolve/main/model.onnx"
-        fi
+  #       echo "Downloading pre-converted ONNX models from Hugging Face..."
+  #       echo ""
 
-        if [ -f ".vendor/models/p1atdev-wd-swinv2-tagger-v3-hf.onnx" ]; then
-          echo "[tagging] p1atdev WD SwinV2 Tagger V3 already downloaded."
-        else
-          echo "[tagging] Downloading p1atdev WD SwinV2 Tagger V3 (quantized)..."
-          curl --ssl-no-revoke -L -o ".vendor/models/p1atdev-wd-swinv2-tagger-v3-hf.onnx" \
-            "https://huggingface.co/p1atdev/wd-swinv2-tagger-v3-hf/resolve/main/model_quantized.onnx"
-        fi
+  #       # ============ TAGGING MODELS ============
 
-        if [ -f ".vendor/models/convnextv2-large-1k-224.onnx" ]; then
-          echo "[tagging] ConvNeXtV2 Large already downloaded."
-        else
-          echo "[tagging] Downloading ConvNeXtV2 Large (224x224, ImageNet 1000-class, quantized)..."
-          curl --ssl-no-revoke -L -o ".vendor/models/convnextv2-large-1k-224.onnx" \
-            "https://huggingface.co/Xenova/convnextv2-large-1k-224/resolve/main/onnx/model_quantized.onnx"
-        fi
+  #       if [ -f ".vendor/models/vit-base-224.onnx" ]; then
+  #         echo "[tagging] ViT-base-224 (ImageNet): already downloaded."
+  #       else
+  #         echo "[tagging] Downloading ViT-base-224 (347MB)..."
+  #         curl --ssl-no-revoke -L -o ".vendor/models/vit-base-224.onnx" \
+  #           "https://huggingface.co/Xenova/vit-base-patch16-224/resolve/main/onnx/model.onnx"
+  #       fi
 
-        # ============ MODERATION MODELS ============
+  #       if [ -f ".vendor/models/vit-base-224-q8.onnx" ]; then
+  #         echo "[tagging] ViT-base-224 quantized: already downloaded."
+  #       else
+  #         echo "[tagging] Downloading ViT-base-224 quantized (88MB)..."
+  #         curl --ssl-no-revoke -L -o ".vendor/models/vit-base-224-q8.onnx" \
+  #           "https://huggingface.co/Xenova/vit-base-patch16-224/resolve/main/onnx/model_quantized.onnx"
+  #       fi
 
-        if [ -f ".vendor/models/onnx-community-nsfw.onnx" ]; then
-          echo "[moderation] ONNX Community NSFW ViT already downloaded."
-        else
-          echo "[moderation] Downloading ONNX Community NSFW ViT (343MB)..."
-          curl --ssl-no-revoke -L -o ".vendor/models/onnx-community-nsfw.onnx" \
-            "https://huggingface.co/onnx-community/nsfw-image-detector-ONNX/resolve/main/onnx/model.onnx"
-        fi
+  #       if [ -f ".vendor/models/wd-tags.csv" ]; then
+  #         echo "[tagging] WD tag list already downloaded."
+  #       else
+  #         echo "[tagging] Downloading WD tag list..."
+  #         curl --ssl-no-revoke -L -o ".vendor/models/wd-tags.csv" \
+  #           "https://huggingface.co/SmilingWolf/wd-vit-tagger-v3/resolve/main/selected_tags.csv"
+  #       fi
 
-        if [ -f ".vendor/models/nsfwjs.onnx" ]; then
-          echo "[moderation] NSFWJS model already downloaded."
-        else
-          echo "[moderation] Downloading NSFWJS model (10MB)..."
-          curl --ssl-no-revoke -L -o ".vendor/models/nsfwjs.onnx" \
-            "https://huggingface.co/deepghs/imgutils-models/resolve/main/nsfw/nsfwjs.onnx"
-        fi
+  #       if [ -f ".vendor/models/wd-vit-tagger-v3.onnx" ]; then
+  #         echo "[tagging] WD ViT Tagger V3 already downloaded."
+  #       else
+  #         echo "[tagging] Downloading WD ViT Tagger V3..."
+  #         curl --ssl-no-revoke -L -o ".vendor/models/wd-vit-tagger-v3.onnx" \
+  #           "https://huggingface.co/SmilingWolf/wd-vit-tagger-v3/resolve/main/model.onnx"
+  #       fi
 
-        if [ -f ".vendor/models/adamcodd-vit-base-nsfw.onnx" ]; then
-          echo "[moderation] AdamCodd ViT NSFW already downloaded."
-        else
-          echo "[moderation] Downloading AdamCodd ViT NSFW (384x384, nsfw/sfw)..."
-          curl --ssl-no-revoke -L -o ".vendor/models/adamcodd-vit-base-nsfw.onnx" \
-            "https://huggingface.co/AdamCodd/vit-base-nsfw-detector/resolve/main/onnx/model.onnx"
-        fi
+  #       if [ -f ".vendor/models/wd-vit-large-tagger-v3.onnx" ]; then
+  #         echo "[tagging] WD ViT Large Tagger V3 already downloaded."
+  #       else
+  #         echo "[tagging] Downloading WD ViT Large Tagger V3..."
+  #         curl --ssl-no-revoke -L -o ".vendor/models/wd-vit-large-tagger-v3.onnx" \
+  #           "https://huggingface.co/SmilingWolf/wd-vit-large-tagger-v3/resolve/main/model.onnx"
+  #       fi
 
-        # NOTE: Falconsai NSFW removed - no ONNX version available (only PyTorch/Safetensors)
+  #       if [ -f ".vendor/models/wd-swinv2-tagger-v3.onnx" ]; then
+  #         echo "[tagging] WD SwinV2 Tagger V3 already downloaded."
+  #       else
+  #         echo "[tagging] Downloading WD SwinV2 Tagger V3..."
+  #         curl --ssl-no-revoke -L -o ".vendor/models/wd-swinv2-tagger-v3.onnx" \
+  #           "https://huggingface.co/SmilingWolf/wd-swinv2-tagger-v3/resolve/main/model.onnx"
+  #       fi
 
-        if [ -f ".vendor/models/spiele-nsfw.onnx" ]; then
-          echo "[moderation] spiele NSFW detector already downloaded."
-        else
-          echo "[moderation] Downloading spiele NSFW detector..."
-          curl --ssl-no-revoke -L -o ".vendor/models/spiele-nsfw.onnx" \
-            "https://huggingface.co/spiele/nsfw_image_detector-ONNX/resolve/main/onnx/model.onnx"
-        fi
+  #       if [ -f ".vendor/models/wd-eva02-large-tagger-v3.onnx" ]; then
+  #         echo "[tagging] WD EVA02 Large Tagger V3 already downloaded."
+  #       else
+  #         echo "[tagging] Downloading WD EVA02 Large Tagger V3..."
+  #         curl --ssl-no-revoke -L -o ".vendor/models/wd-eva02-large-tagger-v3.onnx" \
+  #           "https://huggingface.co/SmilingWolf/wd-eva02-large-tagger-v3/resolve/main/model.onnx"
+  #       fi
 
-        if [ -f ".vendor/models/taufiqdp-mobilenetv4_conv_small.e2400_r224_in1k_nsfw_classifier.onnx" ]; then
-          echo "[moderation] TaufiqDP MobileNetV4 NSFW already downloaded."
-        else
-          echo "[moderation] Downloading TaufiqDP MobileNetV4 NSFW (~10MB)..."
-          curl --ssl-no-revoke -L -o ".vendor/models/taufiqdp-mobilenetv4_conv_small.e2400_r224_in1k_nsfw_classifier.onnx" \
-            "https://huggingface.co/taufiqdp/mobilenetv4_conv_small.e2400_r224_in1k_nsfw_classifier/resolve/main/mobilenetv4_conv_small.e2400_r224_in1k_nsfw_classifier.onnx"
-        fi
+  #       if [ -f ".vendor/models/p1atdev-wd-swinv2-tagger-v3-hf.onnx" ]; then
+  #         echo "[tagging] p1atdev WD SwinV2 Tagger V3 already downloaded."
+  #       else
+  #         echo "[tagging] Downloading p1atdev WD SwinV2 Tagger V3 (quantized)..."
+  #         curl --ssl-no-revoke -L -o ".vendor/models/p1atdev-wd-swinv2-tagger-v3-hf.onnx" \
+  #           "https://huggingface.co/p1atdev/wd-swinv2-tagger-v3-hf/resolve/main/model_quantized.onnx"
+  #       fi
 
-        # Vladmandic NudeNet - Body part detection for ensemble
-        if [ -f ".vendor/models/vladmandic-nudenet.onnx" ]; then
-          echo "[moderation] Vladmandic NudeNet already downloaded."
-        else
-          echo "[moderation] Downloading Vladmandic NudeNet (body part detection, ~12MB)..."
-          curl --ssl-no-revoke -L -o ".vendor/models/vladmandic-nudenet.onnx" \
-            "https://huggingface.co/vladmandic/nudenet/resolve/main/nudenet.onnx"
-        fi
+  #       if [ -f ".vendor/models/convnextv2-large-1k-224.onnx" ]; then
+  #         echo "[tagging] ConvNeXtV2 Large already downloaded."
+  #       else
+  #         echo "[tagging] Downloading ConvNeXtV2 Large (224x224, ImageNet 1000-class, quantized)..."
+  #         curl --ssl-no-revoke -L -o ".vendor/models/convnextv2-large-1k-224.onnx" \
+  #           "https://huggingface.co/Xenova/convnextv2-large-1k-224/resolve/main/onnx/model_quantized.onnx"
+  #       fi
 
-        echo ""
-        echo "HuggingFace models downloaded to .vendor/models/"
-        echo ""
-        echo "Tagging models downloaded:"
-        echo "  - vit-base-224.onnx"
-        echo "  - vit-base-224-q8.onnx"
-        echo "  - wd-vit-tagger-v3.onnx"
-        echo "  - wd-vit-large-tagger-v3.onnx"
-        echo "  - wd-swinv2-tagger-v3.onnx"
-        echo "  - wd-eva02-large-tagger-v3.onnx"
-        echo "  - p1atdev-wd-swinv2-tagger-v3-hf.onnx"
-        echo "  - convnextv2-large-1k-224.onnx (Xenova)"
-        echo "  - wd-tags.csv (tag list)"
-        echo ""
-        echo "Moderation models downloaded:"
-        echo "  - onnx-community-nsfw.onnx (343MB)"
-        echo "  - nsfwjs.onnx (10MB)"
-        echo "  - adamcodd-vit-base-nsfw.onnx (344MB)"
-        echo "  - spiele-nsfw.onnx (~100MB)"
-        echo "  - taufiqdp-mobilenetv4_conv_small.e2400_r224_in1k_nsfw_classifier.onnx (10MB)"
-        echo "  - vladmandic-nudenet.onnx (12MB) ⭐ for ensemble"
-        echo ""
-        echo "To use these models, update camden-classifier.toml:"
-        echo "  # Single model mode:"
-        echo "  moderation_model = \"gantman-nsfw\"  # or \"adamcodd-vit-nsfw\""
-        echo "  tagging_model = \"mobilenetv2\"  # or \"wd-vit-tagger-v3\""
-        echo ""
-        echo "  # OR ensemble mode (recommended):"
-        echo "  moderation_models = [\"gantman-nsfw\", \"vladmandic-nudenet\"]"
-        echo "  tagging_models = [\"mobilenetv2\", \"vit-base-224-q8\"]"
+  #       # ============ MODERATION MODELS ============
 
-  deps-auxiliary-files:
-    silent: true
-    desc: Download auxiliary files required for compilation
-    cmds:
-      - |
-        mkdir -p .vendor/models
+  #       if [ -f ".vendor/models/onnx-community-nsfw.onnx" ]; then
+  #         echo "[moderation] ONNX Community NSFW ViT already downloaded."
+  #       else
+  #         echo "[moderation] Downloading ONNX Community NSFW ViT (343MB)..."
+  #         curl --ssl-no-revoke -L -o ".vendor/models/onnx-community-nsfw.onnx" \
+  #           "https://huggingface.co/onnx-community/nsfw-image-detector-ONNX/resolve/main/onnx/model.onnx"
+  #       fi
 
-        echo "Downloading auxiliary files for tagging..."
+  #       if [ -f ".vendor/models/nsfwjs.onnx" ]; then
+  #         echo "[moderation] NSFWJS model already downloaded."
+  #       else
+  #         echo "[moderation] Downloading NSFWJS model (10MB)..."
+  #         curl --ssl-no-revoke -L -o ".vendor/models/nsfwjs.onnx" \
+  #           "https://huggingface.co/deepghs/imgutils-models/resolve/main/nsfw/nsfwjs.onnx"
+  #       fi
 
-        # ImageNet 1000 class labels
-        if [ -f ".vendor/models/imagenet_labels.txt" ]; then
-          echo "  ✅ imagenet_labels.txt: already exists"
-        else
-          echo "  → Downloading ImageNet labels (1000 classes)..."
-          curl --ssl-no-revoke -L -o ".vendor/models/imagenet_labels_raw.txt" \
-            "https://gist.githubusercontent.com/yrevar/942d3a0ac09ec9e5eb3a/raw/238f720ff059c1f82f368259d1ca4ffa5dd8f9f5/imagenet1000_clsidx_to_labels.txt"
-          # Clean up Python dict format to plain text
-          cat ".vendor/models/imagenet_labels_raw.txt" | awk -F': ' '{print $2}' | sed "s/'//g" | sed 's/ *$//' > ".vendor/models/imagenet_labels.txt"
-          rm ".vendor/models/imagenet_labels_raw.txt"
-          echo "  ✅ imagenet_labels.txt: created (1000 lines)"
-        fi
+  #       if [ -f ".vendor/models/adamcodd-vit-base-nsfw.onnx" ]; then
+  #         echo "[moderation] AdamCodd ViT NSFW already downloaded."
+  #       else
+  #         echo "[moderation] Downloading AdamCodd ViT NSFW (384x384, nsfw/sfw)..."
+  #         curl --ssl-no-revoke -L -o ".vendor/models/adamcodd-vit-base-nsfw.onnx" \
+  #           "https://huggingface.co/AdamCodd/vit-base-nsfw-detector/resolve/main/onnx/model.onnx"
+  #       fi
 
-        # Tag categories configuration (already exists, created by write above)
-        if [ ! -f ".vendor/models/tag_categories.toml" ]; then
-          echo "  ⚠️  tag_categories.toml: missing! This should have been created."
-          echo "     Run the build again or check file permissions."
-        else
-          echo "  ✅ tag_categories.toml: already exists"
-        fi
+  #       # NOTE: Falconsai NSFW removed - no ONNX version available (only PyTorch/Safetensors)
 
-        echo ""
-        echo "Auxiliary files ready for compilation!"
+  #       if [ -f ".vendor/models/spiele-nsfw.onnx" ]; then
+  #         echo "[moderation] spiele NSFW detector already downloaded."
+  #       else
+  #         echo "[moderation] Downloading spiele NSFW detector..."
+  #         curl --ssl-no-revoke -L -o ".vendor/models/spiele-nsfw.onnx" \
+  #           "https://huggingface.co/spiele/nsfw_image_detector-ONNX/resolve/main/onnx/model.onnx"
+  #       fi
 
-  deps-models-phase1:
-    silent: true
-    desc: Download Phase 1 ensemble models from ModelRegistryRewrite.md
-    deps: [deps-auxiliary-files]
-    cmds:
-      - |
-        mkdir -p .vendor/models
+  #       if [ -f ".vendor/models/taufiqdp-mobilenetv4_conv_small.e2400_r224_in1k_nsfw_classifier.onnx" ]; then
+  #         echo "[moderation] TaufiqDP MobileNetV4 NSFW already downloaded."
+  #       else
+  #         echo "[moderation] Downloading TaufiqDP MobileNetV4 NSFW (~10MB)..."
+  #         curl --ssl-no-revoke -L -o ".vendor/models/taufiqdp-mobilenetv4_conv_small.e2400_r224_in1k_nsfw_classifier.onnx" \
+  #           "https://huggingface.co/taufiqdp/mobilenetv4_conv_small.e2400_r224_in1k_nsfw_classifier/resolve/main/mobilenetv4_conv_small.e2400_r224_in1k_nsfw_classifier.onnx"
+  #       fi
 
-        echo "============================================"
-        echo "Downloading Phase 1 Models (5 moderation + 3 tagging)"
-        echo "============================================"
-        echo ""
+  #       # Vladmandic NudeNet - Body part detection for ensemble
+  #       if [ -f ".vendor/models/vladmandic-nudenet.onnx" ]; then
+  #         echo "[moderation] Vladmandic NudeNet already downloaded."
+  #       else
+  #         echo "[moderation] Downloading Vladmandic NudeNet (body part detection, ~12MB)..."
+  #         curl --ssl-no-revoke -L -o ".vendor/models/vladmandic-nudenet.onnx" \
+  #           "https://huggingface.co/vladmandic/nudenet/resolve/main/nudenet.onnx"
+  #       fi
 
-        # ============ PHASE 1 MODERATION MODELS (5) ============
+  #       echo ""
+  #       echo "HuggingFace models downloaded to .vendor/models/"
+  #       echo ""
+  #       echo "Tagging models downloaded:"
+  #       echo "  - vit-base-224.onnx"
+  #       echo "  - vit-base-224-q8.onnx"
+  #       echo "  - wd-vit-tagger-v3.onnx"
+  #       echo "  - wd-vit-large-tagger-v3.onnx"
+  #       echo "  - wd-swinv2-tagger-v3.onnx"
+  #       echo "  - wd-eva02-large-tagger-v3.onnx"
+  #       echo "  - p1atdev-wd-swinv2-tagger-v3-hf.onnx"
+  #       echo "  - convnextv2-large-1k-224.onnx (Xenova)"
+  #       echo "  - wd-tags.csv (tag list)"
+  #       echo ""
+  #       echo "Moderation models downloaded:"
+  #       echo "  - onnx-community-nsfw.onnx (343MB)"
+  #       echo "  - nsfwjs.onnx (10MB)"
+  #       echo "  - adamcodd-vit-base-nsfw.onnx (344MB)"
+  #       echo "  - spiele-nsfw.onnx (~100MB)"
+  #       echo "  - taufiqdp-mobilenetv4_conv_small.e2400_r224_in1k_nsfw_classifier.onnx (10MB)"
+  #       echo "  - vladmandic-nudenet.onnx (12MB) ⭐ for ensemble"
+  #       echo ""
+  #       echo "To use these models, update camden-classifier.toml:"
+  #       echo "  # Single model mode:"
+  #       echo "  moderation_model = \"gantman-nsfw\"  # or \"adamcodd-vit-nsfw\""
+  #       echo "  tagging_model = \"mobilenetv2\"  # or \"wd-vit-tagger-v3\""
+  #       echo ""
+  #       echo "  # OR ensemble mode (recommended):"
+  #       echo "  moderation_models = [\"gantman-nsfw\", \"vladmandic-nudenet\"]"
+  #       echo "  tagging_models = [\"mobilenetv2\", \"vit-base-224-q8\"]"
 
-        echo "Phase 1 Moderation Models (5):"
-        echo ""
+  # deps-auxiliary-files:
+  #   silent: true
+  #   desc: Download auxiliary files required for compilation
+  #   cmds:
+  #     - |
+  #       mkdir -p .vendor/models
 
-        # 1. n4xtan NSFW Classification (CLIP-based)
-        if [ -f ".vendor/models/nsfw_model.onnx" ]; then
-          echo "[1/5] n4xtan NSFW Classification: already downloaded."
-        else
-          echo "[1/5] Downloading n4xtan NSFW Classification (CLIP-based)..."
-          curl --ssl-no-revoke -L -o ".vendor/models/nsfw_model.onnx" \
-            "https://huggingface.co/n4xtan/nsfw-classification/resolve/main/nsfw_model.onnx"
-        fi
+  #       echo "Downloading auxiliary files for tagging..."
 
-        # 2. spiele NSFW Image Detector (4-tier EVA02)
-        if [ -f ".vendor/models/spiele-nsfw-image-detector.onnx" ]; then
-          echo "[2/5] spiele NSFW Image Detector: already downloaded."
-        else
-          echo "[2/5] Downloading spiele NSFW Image Detector (EVA02, 4-tier)..."
-          curl --ssl-no-revoke -L -o ".vendor/models/spiele-nsfw-image-detector.onnx" \
-            "https://huggingface.co/spiele/nsfw_image_detector-ONNX/resolve/main/onnx/model.onnx"
-        fi
+  #       # ImageNet 1000 class labels
+  #       if [ -f ".vendor/models/imagenet_labels.txt" ]; then
+  #         echo "  ✅ imagenet_labels.txt: already exists"
+  #       else
+  #         echo "  → Downloading ImageNet labels (1000 classes)..."
+  #         curl --ssl-no-revoke -L -o ".vendor/models/imagenet_labels_raw.txt" \
+  #           "https://gist.githubusercontent.com/yrevar/942d3a0ac09ec9e5eb3a/raw/238f720ff059c1f82f368259d1ca4ffa5dd8f9f5/imagenet1000_clsidx_to_labels.txt"
+  #         # Clean up Python dict format to plain text
+  #         cat ".vendor/models/imagenet_labels_raw.txt" | awk -F': ' '{print $2}' | sed "s/'//g" | sed 's/ *$//' > ".vendor/models/imagenet_labels.txt"
+  #         rm ".vendor/models/imagenet_labels_raw.txt"
+  #         echo "  ✅ imagenet_labels.txt: created (1000 lines)"
+  #       fi
 
-        # 3. vladmandic NudeNet (body part detection)
-        if [ -f ".vendor/models/nudenet.onnx" ]; then
-          echo "[3/5] vladmandic NudeNet: already downloaded."
-        else
-          echo "[3/5] Downloading vladmandic NudeNet (body part detection, ~12MB)..."
-          curl --ssl-no-revoke -L -o ".vendor/models/nudenet.onnx" \
-            "https://huggingface.co/vladmandic/nudenet/resolve/main/nudenet.onnx"
-        fi
+  #       # Tag categories configuration (already exists, created by write above)
+  #       if [ ! -f ".vendor/models/tag_categories.toml" ]; then
+  #         echo "  ⚠️  tag_categories.toml: missing! This should have been created."
+  #         echo "     Run the build again or check file permissions."
+  #       else
+  #         echo "  ✅ tag_categories.toml: already exists"
+  #       fi
 
-        # 4. deepghs NudeNet ONNX (YOLOv8-based)
-        if [ -f ".vendor/models/deepghs-320n.onnx" ]; then
-          echo "[4/5] deepghs NudeNet ONNX: already downloaded."
-        else
-          echo "[4/5] Downloading deepghs NudeNet ONNX (YOLOv8-based)..."
-          curl --ssl-no-revoke -L -o ".vendor/models/deepghs-320n.onnx" \
-            "https://huggingface.co/deepghs/nudenet_onnx/resolve/main/320n.onnx"
-        fi
+  #       echo ""
+  #       echo "Auxiliary files ready for compilation!"
 
-        if [ -f ".vendor/models/deepghs-nms-yolov8.onnx" ]; then
-          echo "    → deepghs NMS YOLOv8: already downloaded."
-        else
-          echo "    → Downloading deepghs NMS YOLOv8..."
-          curl --ssl-no-revoke -L -o ".vendor/models/deepghs-nms-yolov8.onnx" \
-            "https://huggingface.co/deepghs/nudenet_onnx/resolve/main/nms-yolov8.onnx"
-        fi
+  # deps-models-phase1:
+  #   silent: true
+  #   desc: Download Phase 1 ensemble models from ModelRegistryRewrite.md
+  #   deps: [deps-auxiliary-files]
+  #   cmds:
+  #     - |
+  #       mkdir -p .vendor/models
 
-        # 5. TaufiqDP MobileNetV4 NSFW (5-class GantMan schema)
-        if [ -f ".vendor/models/taufiqdp-mobilenetv4-nsfw.onnx" ]; then
-          echo "[5/5] TaufiqDP MobileNetV4 NSFW: already downloaded."
-        else
-          echo "[5/5] Downloading TaufiqDP MobileNetV4 NSFW (5-class GantMan schema)..."
-          curl --ssl-no-revoke -L -o ".vendor/models/taufiqdp-mobilenetv4-nsfw.onnx" \
-            "https://huggingface.co/taufiqdp/mobilenetv4_conv_small.e2400_r224_in1k_nsfw_classifier/resolve/main/mobilenetv4_conv_small.e2400_r224_in1k_nsfw_classifier.onnx"
-        fi
+  #       echo "============================================"
+  #       echo "Downloading Phase 1 Models (5 moderation + 3 tagging)"
+  #       echo "============================================"
+  #       echo ""
 
-        echo ""
-        echo "Phase 1 Tagging Models (3):"
-        echo ""
+  #       # ============ PHASE 1 MODERATION MODELS (5) ============
 
-        # ============ PHASE 1 TAGGING MODELS (3) ============
+  #       echo "Phase 1 Moderation Models (5):"
+  #       echo ""
 
-        # 1. SmilingWolf WD v1.4 ConvNeXtV2 Tagger V2 (9,999 Danbooru tags)
-        if [ -f ".vendor/models/smilingwolf-wd-v1-4-convnextv2-tagger-v2.onnx" ]; then
-          echo "[1/3] WD v1.4 ConvNeXtV2 Tagger V2: already downloaded."
-        else
-          echo "[1/3] Downloading WD v1.4 ConvNeXtV2 Tagger V2 (9,999 tags, 388MB)..."
-          curl --ssl-no-revoke -L -o ".vendor/models/smilingwolf-wd-v1-4-convnextv2-tagger-v2.onnx" \
-            "https://huggingface.co/SmilingWolf/wd-v1-4-convnextv2-tagger-v2/resolve/main/model.onnx"
-        fi
+  #       # 1. n4xtan NSFW Classification (CLIP-based)
+  #       if [ -f ".vendor/models/nsfw_model.onnx" ]; then
+  #         echo "[1/5] n4xtan NSFW Classification: already downloaded."
+  #       else
+  #         echo "[1/5] Downloading n4xtan NSFW Classification (CLIP-based)..."
+  #         curl --ssl-no-revoke -L -o ".vendor/models/nsfw_model.onnx" \
+  #           "https://huggingface.co/n4xtan/nsfw-classification/resolve/main/nsfw_model.onnx"
+  #       fi
 
-        # Download labels for WD ConvNeXtV2
-        if [ -f ".vendor/models/selected_tags.csv" ]; then
-          echo "    → selected_tags.csv: already downloaded."
-        else
-          echo "    → Downloading selected_tags.csv (254KB)..."
-          curl --ssl-no-revoke -L -o ".vendor/models/selected_tags.csv" \
-            "https://huggingface.co/SmilingWolf/wd-v1-4-convnextv2-tagger-v2/resolve/main/selected_tags.csv"
-        fi
+  #       # 2. spiele NSFW Image Detector (4-tier EVA02)
+  #       if [ -f ".vendor/models/spiele-nsfw-image-detector.onnx" ]; then
+  #         echo "[2/5] spiele NSFW Image Detector: already downloaded."
+  #       else
+  #         echo "[2/5] Downloading spiele NSFW Image Detector (EVA02, 4-tier)..."
+  #         curl --ssl-no-revoke -L -o ".vendor/models/spiele-nsfw-image-detector.onnx" \
+  #           "https://huggingface.co/spiele/nsfw_image_detector-ONNX/resolve/main/onnx/model.onnx"
+  #       fi
 
-        # 2. FancyFeast JoyTag (3,472 Danbooru tags)
-        if [ -f ".vendor/models/fancyfeast-joytag.onnx" ]; then
-          echo "[2/3] FancyFeast JoyTag: already downloaded."
-        else
-          echo "[2/3] Downloading FancyFeast JoyTag (3,472 tags, 366MB)..."
-          curl --ssl-no-revoke -L -o ".vendor/models/fancyfeast-joytag.onnx" \
-            "https://huggingface.co/fancyfeast/joytag/resolve/main/model.onnx"
-        fi
+  #       # 3. vladmandic NudeNet (body part detection)
+  #       if [ -f ".vendor/models/nudenet.onnx" ]; then
+  #         echo "[3/5] vladmandic NudeNet: already downloaded."
+  #       else
+  #         echo "[3/5] Downloading vladmandic NudeNet (body part detection, ~12MB)..."
+  #         curl --ssl-no-revoke -L -o ".vendor/models/nudenet.onnx" \
+  #           "https://huggingface.co/vladmandic/nudenet/resolve/main/nudenet.onnx"
+  #       fi
 
-        # Download labels for JoyTag
-        if [ -f ".vendor/models/top_tags.txt" ]; then
-          echo "    → top_tags.txt: already downloaded."
-        else
-          echo "    → Downloading top_tags.txt (76.8KB)..."
-          curl --ssl-no-revoke -L -o ".vendor/models/top_tags.txt" \
-            "https://huggingface.co/fancyfeast/joytag/resolve/main/top_tags.txt"
-        fi
+  #       # 4. deepghs NudeNet ONNX (YOLOv8-based)
+  #       if [ -f ".vendor/models/deepghs-320n.onnx" ]; then
+  #         echo "[4/5] deepghs NudeNet ONNX: already downloaded."
+  #       else
+  #         echo "[4/5] Downloading deepghs NudeNet ONNX (YOLOv8-based)..."
+  #         curl --ssl-no-revoke -L -o ".vendor/models/deepghs-320n.onnx" \
+  #           "https://huggingface.co/deepghs/nudenet_onnx/resolve/main/320n.onnx"
+  #       fi
 
-        # 3. Cella110n CL Tagger (42,163 tags)
-        # Note: deepghs-nudenet-onnx (moderation) can also be used for tagging
-        if [ -f ".vendor/models/cl_tagger_1_02_model.onnx" ]; then
-          echo "[3/3] Cella110n CL Tagger: already downloaded."
-        else
-          echo "[3/3] Downloading Cella110n CL Tagger (42,163 tags)..."
-          curl --ssl-no-revoke -L -o ".vendor/models/cl_tagger_1_02_model.onnx" \
-            "https://huggingface.co/cella110n/cl_tagger/resolve/main/cl_tagger_1_02/model.onnx"
-        fi
+  #       if [ -f ".vendor/models/deepghs-nms-yolov8.onnx" ]; then
+  #         echo "    → deepghs NMS YOLOv8: already downloaded."
+  #       else
+  #         echo "    → Downloading deepghs NMS YOLOv8..."
+  #         curl --ssl-no-revoke -L -o ".vendor/models/deepghs-nms-yolov8.onnx" \
+  #           "https://huggingface.co/deepghs/nudenet_onnx/resolve/main/nms-yolov8.onnx"
+  #       fi
 
-        # Download labels for CL Tagger
-        if [ -f ".vendor/models/cl_tagger_1_02_tag_mapping.json" ]; then
-          echo "    → cl_tagger_1_02_tag_mapping.json: already downloaded."
-        else
-          echo "    → Downloading cl_tagger_1_02_tag_mapping.json..."
-          curl --ssl-no-revoke -L -o ".vendor/models/cl_tagger_1_02_tag_mapping.json" \
-            "https://huggingface.co/cella110n/cl_tagger/resolve/main/cl_tagger_1_02/tag_mapping.json"
-        fi
+  #       # 5. TaufiqDP MobileNetV4 NSFW (5-class GantMan schema)
+  #       if [ -f ".vendor/models/taufiqdp-mobilenetv4-nsfw.onnx" ]; then
+  #         echo "[5/5] TaufiqDP MobileNetV4 NSFW: already downloaded."
+  #       else
+  #         echo "[5/5] Downloading TaufiqDP MobileNetV4 NSFW (5-class GantMan schema)..."
+  #         curl --ssl-no-revoke -L -o ".vendor/models/taufiqdp-mobilenetv4-nsfw.onnx" \
+  #           "https://huggingface.co/taufiqdp/mobilenetv4_conv_small.e2400_r224_in1k_nsfw_classifier/resolve/main/mobilenetv4_conv_small.e2400_r224_in1k_nsfw_classifier.onnx"
+  #       fi
 
-        echo ""
-        echo "============================================"
-        echo "Phase 1 Models Downloaded Successfully!"
-        echo "============================================"
-        echo ""
-        echo "Moderation Models (5):"
-        echo "  ✅ nsfw_model.onnx (n4xtan CLIP-based)"
-        echo "  ✅ spiele-nsfw-image-detector.onnx (4-tier EVA02)"
-        echo "  ✅ nudenet.onnx (vladmandic body part detection) ★ Dual-purpose"
-        echo "  ✅ deepghs-320n.onnx + deepghs-nms-yolov8.onnx (YOLOv8-based) ★ Dual-purpose"
-        echo "  ✅ taufiqdp-mobilenetv4-nsfw.onnx (5-class MobileNetV4)"
-        echo ""
-        echo "Tagging Models (3):"
-        echo "  ✅ smilingwolf-wd-v1-4-convnextv2-tagger-v2.onnx + selected_tags.csv"
-        echo "  ✅ fancyfeast-joytag.onnx + top_tags.txt"
-        echo "  ✅ cl_tagger_1_02_model.onnx + cl_tagger_1_02_tag_mapping.json"
-        echo ""
-        echo "★ Dual-purpose models can be used in BOTH moderation and tagging pipelines!"
-        echo ""
-        echo "Recommended Phase 1 Ensemble (3 best from each):"
-        echo ""
-        echo "  moderation_models = ["
-        echo "    \"spiele-nsfw-image-detector\",  # High-res 4-tier EVA02"
-        echo "    \"taufiqdp-mobilenetv4-nsfw\",   # Fast 5-class MobileNetV4"
-        echo "    \"vladmandic-nudenet\",           # Body part detection"
-        echo "  ]"
-        echo ""
-        echo "  tagging_models = ["
-        echo "    \"smilingwolf-wd-v1-4-convnextv2-tagger-v2\",  # 9,999 tags"
-        echo "    \"fancyfeast-joytag\",                          # 3,472 tags"
-        echo "    \"cella110n-cl-tagger\",                        # 42,163 tags"
-        echo "  ]"
-        echo ""
+  #       echo ""
+  #       echo "Phase 1 Tagging Models (3):"
+  #       echo ""
 
-  convert-hf-model:
-    desc: Convert a HuggingFace model to ONNX (requires Python + torch)
-    cmds:
-      - |
-        if [ -z "{{.MODEL}}" ]; then
-          echo "Usage: task convert-hf-model MODEL=Falconsai/nsfw_image_detection OUTPUT=.vendor/models/model.onnx"
-          echo ""
-          echo "Known presets:"
-          python scripts/convert_hf_to_onnx.py --list-presets
-          exit 1
-        fi
-        
-        OUTPUT="${OUTPUT:-.vendor/models/converted.onnx}"
-        python scripts/convert_hf_to_onnx.py --model "{{.MODEL}}" --output "$OUTPUT"
+  #       # ============ PHASE 1 TAGGING MODELS (3) ============
+
+  #       # 1. SmilingWolf WD v1.4 ConvNeXtV2 Tagger V2 (9,999 Danbooru tags)
+  #       if [ -f ".vendor/models/smilingwolf-wd-v1-4-convnextv2-tagger-v2.onnx" ]; then
+  #         echo "[1/3] WD v1.4 ConvNeXtV2 Tagger V2: already downloaded."
+  #       else
+  #         echo "[1/3] Downloading WD v1.4 ConvNeXtV2 Tagger V2 (9,999 tags, 388MB)..."
+  #         curl --ssl-no-revoke -L -o ".vendor/models/smilingwolf-wd-v1-4-convnextv2-tagger-v2.onnx" \
+  #           "https://huggingface.co/SmilingWolf/wd-v1-4-convnextv2-tagger-v2/resolve/main/model.onnx"
+  #       fi
+
+  #       # Download labels for WD ConvNeXtV2
+  #       if [ -f ".vendor/models/selected_tags.csv" ]; then
+  #         echo "    → selected_tags.csv: already downloaded."
+  #       else
+  #         echo "    → Downloading selected_tags.csv (254KB)..."
+  #         curl --ssl-no-revoke -L -o ".vendor/models/selected_tags.csv" \
+  #           "https://huggingface.co/SmilingWolf/wd-v1-4-convnextv2-tagger-v2/resolve/main/selected_tags.csv"
+  #       fi
+
+  #       # 2. FancyFeast JoyTag (3,472 Danbooru tags)
+  #       if [ -f ".vendor/models/fancyfeast-joytag.onnx" ]; then
+  #         echo "[2/3] FancyFeast JoyTag: already downloaded."
+  #       else
+  #         echo "[2/3] Downloading FancyFeast JoyTag (3,472 tags, 366MB)..."
+  #         curl --ssl-no-revoke -L -o ".vendor/models/fancyfeast-joytag.onnx" \
+  #           "https://huggingface.co/fancyfeast/joytag/resolve/main/model.onnx"
+  #       fi
+
+  #       # Download labels for JoyTag
+  #       if [ -f ".vendor/models/top_tags.txt" ]; then
+  #         echo "    → top_tags.txt: already downloaded."
+  #       else
+  #         echo "    → Downloading top_tags.txt (76.8KB)..."
+  #         curl --ssl-no-revoke -L -o ".vendor/models/top_tags.txt" \
+  #           "https://huggingface.co/fancyfeast/joytag/resolve/main/top_tags.txt"
+  #       fi
+
+  #       # 3. Cella110n CL Tagger (42,163 tags)
+  #       # Note: deepghs-nudenet-onnx (moderation) can also be used for tagging
+  #       if [ -f ".vendor/models/cl_tagger_1_02_model.onnx" ]; then
+  #         echo "[3/3] Cella110n CL Tagger: already downloaded."
+  #       else
+  #         echo "[3/3] Downloading Cella110n CL Tagger (42,163 tags)..."
+  #         curl --ssl-no-revoke -L -o ".vendor/models/cl_tagger_1_02_model.onnx" \
+  #           "https://huggingface.co/cella110n/cl_tagger/resolve/main/cl_tagger_1_02/model.onnx"
+  #       fi
+
+  #       # Download labels for CL Tagger
+  #       if [ -f ".vendor/models/cl_tagger_1_02_tag_mapping.json" ]; then
+  #         echo "    → cl_tagger_1_02_tag_mapping.json: already downloaded."
+  #       else
+  #         echo "    → Downloading cl_tagger_1_02_tag_mapping.json..."
+  #         curl --ssl-no-revoke -L -o ".vendor/models/cl_tagger_1_02_tag_mapping.json" \
+  #           "https://huggingface.co/cella110n/cl_tagger/resolve/main/cl_tagger_1_02/tag_mapping.json"
+  #       fi
+
+  #       echo ""
+  #       echo "============================================"
+  #       echo "Phase 1 Models Downloaded Successfully!"
+  #       echo "============================================"
+  #       echo ""
+  #       echo "Moderation Models (5):"
+  #       echo "  ✅ nsfw_model.onnx (n4xtan CLIP-based)"
+  #       echo "  ✅ spiele-nsfw-image-detector.onnx (4-tier EVA02)"
+  #       echo "  ✅ nudenet.onnx (vladmandic body part detection) ★ Dual-purpose"
+  #       echo "  ✅ deepghs-320n.onnx + deepghs-nms-yolov8.onnx (YOLOv8-based) ★ Dual-purpose"
+  #       echo "  ✅ taufiqdp-mobilenetv4-nsfw.onnx (5-class MobileNetV4)"
+  #       echo ""
+  #       echo "Tagging Models (3):"
+  #       echo "  ✅ smilingwolf-wd-v1-4-convnextv2-tagger-v2.onnx + selected_tags.csv"
+  #       echo "  ✅ fancyfeast-joytag.onnx + top_tags.txt"
+  #       echo "  ✅ cl_tagger_1_02_model.onnx + cl_tagger_1_02_tag_mapping.json"
+  #       echo ""
+  #       echo "★ Dual-purpose models can be used in BOTH moderation and tagging pipelines!"
+  #       echo ""
+  #       echo "Recommended Phase 1 Ensemble (3 best from each):"
+  #       echo ""
+  #       echo "  moderation_models = ["
+  #       echo "    \"spiele-nsfw-image-detector\",  # High-res 4-tier EVA02"
+  #       echo "    \"taufiqdp-mobilenetv4-nsfw\",   # Fast 5-class MobileNetV4"
+  #       echo "    \"vladmandic-nudenet\",           # Body part detection"
+  #       echo "  ]"
+  #       echo ""
+  #       echo "  tagging_models = ["
+  #       echo "    \"smilingwolf-wd-v1-4-convnextv2-tagger-v2\",  # 9,999 tags"
+  #       echo "    \"fancyfeast-joytag\",                          # 3,472 tags"
+  #       echo "    \"cella110n-cl-tagger\",                        # 42,163 tags"
+  #       echo "  ]"
+  #       echo ""
+
+  # convert-hf-model:
+  #   desc: Convert a HuggingFace model to ONNX (requires Python + torch)
+  #   cmds:
+  #     - |
+  #       if [ -z "{{.MODEL}}" ]; then
+  #         echo "Usage: task convert-hf-model MODEL=Falconsai/nsfw_image_detection OUTPUT=.vendor/models/model.onnx"
+  #         echo ""
+  #         echo "Known presets:"
+  #         python scripts/convert_hf_to_onnx.py --list-presets
+  #         exit 1
+  #       fi
+
+  #       OUTPUT="${OUTPUT:-.vendor/models/converted.onnx}"
+  #       python scripts/convert_hf_to_onnx.py --model "{{.MODEL}}" --output "$OUTPUT"

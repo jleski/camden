@@ -40,7 +40,7 @@ fn run_scan(config: CliConfig) {
         .with_low_resolution_detection(config.detect_low_resolution)
         .with_classification(config.enable_classification)
         .with_feature_detection(config.enable_feature_detection)
-        .with_prefer_display_aspect_ratios(config.prefer_display_aspect_ratios);
+        .with_prefer_ultrawide_aspect_ratios(config.prefer_ultrawide_aspect_ratios);
 
     let summary = scan(&config.root, &scan_config, &progress_bar, None);
     progress_bar.finish_with_message("Scan complete");
@@ -85,7 +85,7 @@ fn run_preview(config: PreviewConfig) {
         .with_low_resolution_detection(config.detect_low_resolution)
         .with_classification(config.enable_classification)
         .with_feature_detection(config.enable_feature_detection)
-        .with_prefer_display_aspect_ratios(config.prefer_display_aspect_ratios);
+        .with_prefer_ultrawide_aspect_ratios(config.prefer_ultrawide_aspect_ratios);
 
     if let Some(root) = config.thumbnail_root() {
         scan_config = scan_config.with_thumbnail_root(root.to_path_buf());

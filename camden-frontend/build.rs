@@ -34,10 +34,10 @@ fn main() {
 fn parse_field(content: &str, field: &str) -> Option<u32> {
     for line in content.lines() {
         let trimmed = line.trim();
-        if trimmed.starts_with(field) {
-            if let Some(value) = trimmed.split('=').nth(1) {
-                return value.trim().parse().ok();
-            }
+        if trimmed.starts_with(field)
+            && let Some(value) = trimmed.split('=').nth(1)
+        {
+            return value.trim().parse().ok();
         }
     }
     None

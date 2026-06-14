@@ -1,44 +1,46 @@
 version: '3'
 
 tasks:
-  install-opencv:
-    platforms: [windows]
-    vars:
-      OPENCV_VERSION: 4.12.0
-    cmds:
-      - |
-        if [ -d ".vendor/opencv" ]; then
-          echo "OpenCV is already installed in local vendor directory."
-        else
-          echo "Downloading OpenCV {{.OPENCV_VERSION}}..."
-          curl --ssl-no-revoke -L -o opencv.exe "https://github.com/opencv/opencv/releases/download/{{.OPENCV_VERSION}}/opencv-{{.OPENCV_VERSION}}-windows.exe"
-          
-          echo "Extracting OpenCV..."
-          mkdir -p .vendor
-          # The exe is a 7zip self-extracting archive. -y assumes yes, -o specifies output dir.
-          ./opencv.exe -y -o.vendor
-          
-          rm opencv.exe
-          echo "OpenCV setup complete."
-        fi
+  # install-opencv:
+  #   platforms: [windows]
+  #   vars:
+  #     OPENCV_VERSION: 5.0.0 #4.12.0
+  #   cmds:
+  #     - |
+  #       if [ -d ".vendor/opencv" ]; then
+  #         echo "OpenCV is already installed in local vendor directory."
+  #       else
+  #         echo "Downloading OpenCV {{.OPENCV_VERSION}}..."
+  #         curl --ssl-no-revoke -L -o opencv.exe "https://github.com/opencv/opencv/releases/download/{{.OPENCV_VERSION}}/opencv-{{.OPENCV_VERSION}}-windows.exe"
+
+  #         echo "Extracting OpenCV..."
+  #         mkdir -p .vendor
+  #         # The exe is a 7zip self-extracting archive. -y assumes yes, -o specifies output dir.
+  #         ./opencv.exe -y -o.vendor
+
+  #         rm opencv.exe
+  #         echo "OpenCV setup complete."
+  #       fi
 
   install-vcpkg:
     platforms: [windows]
     silent: true
     cmds:
       - |
-        if ! command -v "vcpkg" >/dev/null; then
+        if [ -f ".vendor/vcpkg/vcpkg.exe" ]; then
+          echo "vcpkg is already installed."
+        else
           if [ -d ".vendor/vcpkg" ]; then
-            echo "vcpkg is already installed."
-          else
-            echo "Cloning vcpkg..."
-            mkdir -p .vendor
-            git clone https://github.com/microsoft/vcpkg .vendor/vcpkg
-            echo "Bootstrapping vcpkg..."
-            cd .vendor/vcpkg
-            pwsh -NoProfile -ExecutionPolicy Bypass -c "scripts\bootstrap.ps1"
-            cd ../..
+            echo "Removing incomplete .vendor/vcpkg directory..."
+            rm -rf .vendor/vcpkg
           fi
+          echo "Cloning vcpkg..."
+          mkdir -p .vendor
+          git clone https://github.com/microsoft/vcpkg .vendor/vcpkg
+          echo "Bootstrapping vcpkg..."
+          cd .vendor/vcpkg
+          pwsh -NoProfile -ExecutionPolicy Bypass -c "scripts\bootstrap.ps1"
+          cd ../..
         fi
 
   install-opencv-static:
