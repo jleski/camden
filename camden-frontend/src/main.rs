@@ -1,11 +1,11 @@
 use camden_core::{
-    ResolutionTier, ScanConfig, ScanSummary, ThreadingMode,
+    LowResolutionConfig, ResolutionTier, ScanConfig, ScanSummary, ThreadingMode,
     keeper::{KeeperCandidate, KeeperPreferences},
     move_paths, scan, select_keeper_index, write_classification_report,
 };
 use indicatif::{ProgressBar, ProgressStyle};
 use serde::{Deserialize, Serialize};
-use slint::{Image, ModelRc, SharedString, Timer, TimerMode, VecModel};
+use slint::{Image, Model, ModelRc, SharedString, Timer, TimerMode, VecModel};
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::fs;
@@ -51,11 +51,11 @@ thread_local! {
     /// Cached outer + inner `VecModel` instances for the duplicate-groups panel.
     /// Lives on the UI thread only; access is always from the Slint event loop.
     static DUPLICATE_GROUPS_CACHE: RefCell<Option<DuplicateGroupsModelCache>> =
-        RefCell::new(None);
+        const { RefCell::new(None) };
 
     /// Cached `VecModel` for the gallery panel, reused across filter changes via
     /// `set_vec` to avoid creating a fresh model on every filter update.
-    static GALLERY_CACHE: RefCell<Option<Rc<VecModel<PhotoData>>>> = RefCell::new(None);
+    static GALLERY_CACHE: RefCell<Option<Rc<VecModel<PhotoData>>>> = const { RefCell::new(None) };
 }
 
 #[derive(Clone)]
@@ -102,6 +102,7 @@ struct AppState {
 }
 
 #[derive(Serialize, Deserialize, Clone)]
+#[serde(default)]
 struct AppSettings {
     last_root_path: Option<String>,
     last_target_path: Option<String>,
@@ -117,6 +118,13 @@ struct AppSettings {
     scan_rename_to_guid: bool,
     #[serde(alias = "scan_prefer_display_aspect_ratios")]
     scan_prefer_ultrawide_aspect_ratios: bool,
+    /// Minimum longest-edge length (in pixels) for an image to be considered high
+    /// resolution; below this, it's flagged as low-res. Defaults to 1900.
+    low_res_min_longest_edge: i32,
+    /// When true, landscape/square images are checked against `low_res_min_longest_edge`.
+    low_res_check_landscape: bool,
+    /// When true, portrait images are checked against `low_res_min_longest_edge`.
+    low_res_check_portrait: bool,
 }
 
 impl Default for AppSettings {
@@ -135,6 +143,9 @@ impl Default for AppSettings {
             scan_feature_detection: true,
             scan_rename_to_guid: false,
             scan_prefer_ultrawide_aspect_ratios: false,
+            low_res_min_longest_edge: camden_core::DEFAULT_MIN_LONGEST_EDGE,
+            low_res_check_landscape: true,
+            low_res_check_portrait: true,
         }
     }
 }
@@ -193,6 +204,9 @@ fn main() -> Result<(), slint::PlatformError> {
         ui.set_enable_feature_detection(settings.scan_feature_detection);
         ui.set_rename_to_guid(settings.scan_rename_to_guid);
         ui.set_prefer_ultrawide_aspect_ratios(settings.scan_prefer_ultrawide_aspect_ratios);
+        ui.set_settings_low_res_min_longest_edge(settings.low_res_min_longest_edge);
+        ui.set_settings_low_res_check_landscape(settings.low_res_check_landscape);
+        ui.set_settings_low_res_check_portrait(settings.low_res_check_portrait);
         if let Some(archive) = &settings.archive_path {
             ui.set_settings_archive_path(archive.clone().into());
         }
@@ -276,6 +290,11 @@ fn main() -> Result<(), slint::PlatformError> {
                     settings_mut.scan_rename_to_guid = ui.get_rename_to_guid();
                     settings_mut.scan_prefer_ultrawide_aspect_ratios =
                         ui.get_prefer_ultrawide_aspect_ratios();
+                    settings_mut.low_res_min_longest_edge =
+                        ui.get_settings_low_res_min_longest_edge();
+                    settings_mut.low_res_check_landscape =
+                        ui.get_settings_low_res_check_landscape();
+                    settings_mut.low_res_check_portrait = ui.get_settings_low_res_check_portrait();
                     settings_mut.last_root_path = Some(root_text.clone());
                     save_settings(&settings_mut);
                 }
@@ -295,12 +314,18 @@ fn main() -> Result<(), slint::PlatformError> {
                 let enable_classification = ui.get_enable_classification();
                 let enable_feature_detection = ui.get_enable_feature_detection();
                 let prefer_ultrawide_aspect_ratios = ui.get_prefer_ultrawide_aspect_ratios();
+                let low_resolution_config = LowResolutionConfig {
+                    min_longest_edge: ui.get_settings_low_res_min_longest_edge(),
+                    check_landscape: ui.get_settings_low_res_check_landscape(),
+                    check_portrait: ui.get_settings_low_res_check_portrait(),
+                };
                 let config = build_scan_config(
                     rename_to_guid,
                     detect_low_resolution,
                     enable_classification,
                     enable_feature_detection,
                     prefer_ultrawide_aspect_ratios,
+                    low_resolution_config,
                 );
 
                 let ui_weak = ui_weak.clone();
@@ -439,21 +464,23 @@ fn main() -> Result<(), slint::PlatformError> {
             if let Some(ui) = ui_weak.upgrade()
                 && let Ok(mut state_mut) = state.lock()
             {
-                let filtered = apply_gallery_filters(
-                    &state_mut.all_photos,
-                    ui.get_filter_show_landscape(),
-                    ui.get_filter_show_portrait(),
-                    ui.get_filter_show_square(),
-                    ui.get_filter_show_high_res(),
-                    ui.get_filter_show_mobile_res(),
-                    ui.get_filter_show_low_res(),
-                    ui.get_filter_show_safe(),
-                    ui.get_filter_show_sensitive(),
-                    ui.get_filter_show_mature(),
-                    ui.get_filter_show_restricted(),
-                    ui.get_filter_tag_search().as_ref(),
-                );
-                state_mut.gallery_photos = filtered;
+                apply_gallery_filters_and_sort_from_ui(&mut state_mut, &ui);
+                let snapshot = state_mut.clone();
+                drop(state_mut);
+                refresh_ui(&ui, &snapshot, None, RefreshHint::GalleryFilterChanged);
+            }
+        });
+    }
+
+    // Gallery sort changed callback
+    {
+        let state = Arc::clone(&state);
+        let ui_weak = ui_weak.clone();
+        ui.on_gallery_sort_changed(move || {
+            if let Some(ui) = ui_weak.upgrade()
+                && let Ok(mut state_mut) = state.lock()
+            {
+                apply_gallery_filters_and_sort_from_ui(&mut state_mut, &ui);
                 let snapshot = state_mut.clone();
                 drop(state_mut);
                 refresh_ui(&ui, &snapshot, None, RefreshHint::GalleryFilterChanged);
@@ -602,13 +629,13 @@ fn main() -> Result<(), slint::PlatformError> {
         });
     }
 
-    // Gallery action callbacks (stubs for now)
+    // Gallery action callbacks
     {
-        let state = Arc::clone(&state);
+        let state_photo = Arc::clone(&state);
         let ui_weak_photo = ui_weak.clone();
         ui.on_gallery_photo_clicked(move |idx| {
             if let Some(ui) = ui_weak_photo.upgrade()
-                && let Ok(state_mut) = state.lock()
+                && let Ok(state_mut) = state_photo.lock()
                 && let Some(photo) = state_mut.gallery_photos.get(idx as usize)
             {
                 let photo_data = file_to_photo_data(photo, idx, -1);
@@ -617,24 +644,114 @@ fn main() -> Result<(), slint::PlatformError> {
             }
         });
 
-        ui.on_gallery_photo_toggle_selected(|_idx| {
-            // TODO: Toggle photo selection in gallery
+        let state_toggle = Arc::clone(&state);
+        let ui_weak_toggle = ui_weak.clone();
+        ui.on_gallery_photo_toggle_selected(move |idx| {
+            if let Some(ui) = ui_weak_toggle.upgrade()
+                && let Ok(mut state_mut) = state_toggle.lock()
+            {
+                toggle_gallery_photo(&mut state_mut, idx as usize);
+                let snapshot = state_mut.clone();
+                drop(state_mut);
+                refresh_ui(&ui, &snapshot, None, RefreshHint::GalleryFilterChanged);
+            }
         });
 
-        ui.on_gallery_export_selected(|| {
-            // TODO: Export selected photos
+        let state_export = Arc::clone(&state);
+        let ui_weak_export = ui_weak.clone();
+        ui.on_gallery_export_selected(move || {
+            if let Some(ui) = ui_weak_export.upgrade() {
+                let selected = selected_gallery_paths(&state_export);
+                if selected.is_empty() {
+                    ui.set_status_text("No photos selected to export.".into());
+                    return;
+                }
+                let Some(folder) = rfd::FileDialog::new().pick_folder() else {
+                    return;
+                };
+                ui.set_status_text(format!("Exporting {} photos…", selected.len()).into());
+                let ui_weak = ui_weak_export.clone();
+                std::thread::spawn(move || perform_copy(selected, folder, ui_weak));
+            }
         });
 
-        ui.on_gallery_archive_selected(|| {
-            // TODO: Archive selected photos from gallery
+        let state_archive = Arc::clone(&state);
+        let ui_weak_archive = ui_weak.clone();
+        ui.on_gallery_archive_selected(move || {
+            if let Some(ui) = ui_weak_archive.upgrade() {
+                let archive_path_str = ui.get_settings_archive_path().to_string();
+                if archive_path_str.is_empty() {
+                    ui.set_status_text(
+                        "Please set an archive path in Settings before archiving.".into(),
+                    );
+                    return;
+                }
+                let selected = selected_gallery_paths(&state_archive);
+                if selected.is_empty() {
+                    ui.set_status_text("No photos selected to archive.".into());
+                    return;
+                }
+                ui.set_status_text(format!("Archiving {} photos…", selected.len()).into());
+                let ui_weak = ui_weak_archive.clone();
+                let state = Arc::clone(&state_archive);
+                std::thread::spawn(move || {
+                    perform_move(selected, PathBuf::from(archive_path_str), state, ui_weak)
+                });
+            }
         });
 
-        ui.on_gallery_select_all(|| {
-            // TODO: Select all filtered photos
+        let state_delete = Arc::clone(&state);
+        let ui_weak_delete = ui_weak.clone();
+        ui.on_gallery_delete_selected(move || {
+            if let Some(ui) = ui_weak_delete.upgrade() {
+                let selected = selected_gallery_paths(&state_delete);
+                if selected.is_empty() {
+                    ui.set_status_text("No photos selected to delete.".into());
+                    return;
+                }
+                let confirmed = rfd::MessageDialog::new()
+                    .set_level(rfd::MessageLevel::Warning)
+                    .set_title("Delete Photos")
+                    .set_description(format!(
+                        "Permanently delete {} selected photo(s)? This cannot be undone.",
+                        selected.len()
+                    ))
+                    .set_buttons(rfd::MessageButtons::YesNo)
+                    .show();
+                if confirmed != rfd::MessageDialogResult::Yes {
+                    return;
+                }
+                ui.set_status_text(format!("Deleting {} photos…", selected.len()).into());
+                let ui_weak = ui_weak_delete.clone();
+                let state = Arc::clone(&state_delete);
+                std::thread::spawn(move || perform_delete(selected, state, ui_weak));
+            }
         });
 
-        ui.on_gallery_deselect_all(|| {
-            // TODO: Deselect all photos
+        let state_select_all = Arc::clone(&state);
+        let ui_weak_select_all = ui_weak.clone();
+        ui.on_gallery_select_all(move || {
+            if let Some(ui) = ui_weak_select_all.upgrade()
+                && let Ok(mut state_mut) = state_select_all.lock()
+            {
+                set_gallery_selection(&mut state_mut, true);
+                let snapshot = state_mut.clone();
+                drop(state_mut);
+                refresh_ui(&ui, &snapshot, None, RefreshHint::GalleryFilterChanged);
+            }
+        });
+
+        let state_deselect_all = Arc::clone(&state);
+        let ui_weak_deselect_all = ui_weak.clone();
+        ui.on_gallery_deselect_all(move || {
+            if let Some(ui) = ui_weak_deselect_all.upgrade()
+                && let Ok(mut state_mut) = state_deselect_all.lock()
+            {
+                set_gallery_selection(&mut state_mut, false);
+                let snapshot = state_mut.clone();
+                drop(state_mut);
+                refresh_ui(&ui, &snapshot, None, RefreshHint::GalleryFilterChanged);
+            }
         });
 
         let ui_weak_clone = ui_weak.clone();
@@ -646,6 +763,9 @@ fn main() -> Result<(), slint::PlatformError> {
                 settings_mut.dark_mode = ui.get_dark_mode();
                 settings_mut.show_tags = ui.get_settings_show_tags();
                 settings_mut.compact_cards = ui.get_settings_compact_cards();
+                settings_mut.low_res_min_longest_edge = ui.get_settings_low_res_min_longest_edge();
+                settings_mut.low_res_check_landscape = ui.get_settings_low_res_check_landscape();
+                settings_mut.low_res_check_portrait = ui.get_settings_low_res_check_portrait();
                 let archive = ui.get_settings_archive_path().to_string();
                 if !archive.is_empty() {
                     settings_mut.archive_path = Some(archive);
@@ -667,6 +787,9 @@ fn main() -> Result<(), slint::PlatformError> {
                 ui.set_dark_mode(defaults.dark_mode);
                 ui.set_settings_show_tags(defaults.show_tags);
                 ui.set_settings_compact_cards(defaults.compact_cards);
+                ui.set_settings_low_res_min_longest_edge(defaults.low_res_min_longest_edge);
+                ui.set_settings_low_res_check_landscape(defaults.low_res_check_landscape);
+                ui.set_settings_low_res_check_portrait(defaults.low_res_check_portrait);
                 if let Ok(mut settings_mut) = settings_clone.lock() {
                     *settings_mut = defaults;
                     save_settings(&settings_mut);
@@ -733,7 +856,8 @@ fn perform_scan(
 
     // Collect ALL photos for gallery (not just actionable groups)
     // This ensures the gallery shows all scanned photos, including unique high-res images
-    let all_photos: Vec<InternalFile> = map_all_photos(&summary);
+    let mut all_photos: Vec<InternalFile> = map_all_photos(&summary);
+    sort_gallery_photos(&mut all_photos, 0); // Default: newest first
 
     if let Ok(mut state_mut) = state.lock() {
         state_mut.groups = groups;
@@ -824,12 +948,7 @@ fn perform_move(
         Ok(stats) => {
             let moved_set: HashSet<PathBuf> = paths.into_iter().collect();
             if let Ok(mut state_mut) = state.lock() {
-                let prefer_ultrawide = state_mut.prefer_ultrawide;
-                for group in state_mut.groups.iter_mut() {
-                    group.files.retain(|file| !moved_set.contains(&file.path));
-                }
-                state_mut.groups.retain(|group| !group.files.is_empty());
-                ensure_keeper_selected(&mut state_mut.groups, prefer_ultrawide);
+                prune_moved_files(&mut state_mut, &moved_set);
             }
             format!("Moved {} files to {}", stats.moved, target.display())
         }
@@ -842,6 +961,114 @@ fn perform_move(
             && let Ok(state_ref) = state_clone.lock()
         {
             ui.set_scanning(state_ref.scanning);
+            refresh_ui(
+                &ui,
+                &state_ref,
+                Some(status_text.clone()),
+                RefreshHint::Full,
+            );
+        }
+    })
+    .ok();
+}
+
+/// Collects paths of currently selected photos in the Organize (gallery) tab.
+///
+/// Reads from `gallery_photos` (the filtered view) rather than `all_photos`,
+/// so actions only ever apply to photos the user can currently see.
+fn selected_gallery_paths(state: &Arc<Mutex<AppState>>) -> Vec<PathBuf> {
+    state
+        .lock()
+        .map(|state| {
+            state
+                .gallery_photos
+                .iter()
+                .filter(|file| file.selected)
+                .map(|file| file.path.clone())
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// Toggles the `selected` flag for one photo in the gallery view, keeping
+/// `all_photos` (the source of truth) and `gallery_photos` (the filtered,
+/// currently-displayed subset) in sync.
+///
+/// `idx` indexes into `gallery_photos`, matching the index the UI passed to
+/// `photo-toggle-selected`. Writing only to `gallery_photos` would silently
+/// lose the change on the next filter change, since `apply_gallery_filters`
+/// rebuilds `gallery_photos` by cloning fresh from `all_photos`.
+fn toggle_gallery_photo(state: &mut AppState, idx: usize) {
+    let Some(path) = state.gallery_photos.get(idx).map(|f| f.path.clone()) else {
+        return;
+    };
+    if let Some(file) = state.all_photos.iter_mut().find(|f| f.path == path) {
+        file.selected = !file.selected;
+    }
+    if let Some(file) = state.gallery_photos.get_mut(idx) {
+        file.selected = !file.selected;
+    }
+}
+
+/// Sets the `selected` flag for every photo currently visible in the gallery
+/// view (i.e. every entry in `gallery_photos`), applied to both `all_photos`
+/// and `gallery_photos` so the change survives the next filter change.
+fn set_gallery_selection(state: &mut AppState, selected: bool) {
+    let visible_paths: HashSet<PathBuf> = state
+        .gallery_photos
+        .iter()
+        .map(|f| f.path.clone())
+        .collect();
+    for file in state.all_photos.iter_mut() {
+        if visible_paths.contains(&file.path) {
+            file.selected = selected;
+        }
+    }
+    for file in state.gallery_photos.iter_mut() {
+        file.selected = selected;
+    }
+}
+
+/// Copies the given files into `target`, leaving the originals in place
+/// (used by "Export to Folder" in the Organize tab).
+fn perform_copy(paths: Vec<PathBuf>, target: PathBuf, ui_weak: slint::Weak<MainWindow>) {
+    let status_text = match camden_core::copy_paths(&paths, &target) {
+        Ok(stats) => format!("Exported {} photos to {}", stats.moved, target.display()),
+        Err(err) => format!("Failed to export photos: {}", err),
+    };
+    slint::invoke_from_event_loop(move || {
+        if let Some(ui) = ui_weak.upgrade() {
+            ui.set_status_text(status_text.into());
+        }
+    })
+    .ok();
+}
+
+/// Permanently deletes the given files from disk, then prunes them from every
+/// in-memory collection so the UI reflects the change immediately.
+fn perform_delete(
+    paths: Vec<PathBuf>,
+    state: Arc<Mutex<AppState>>,
+    ui_weak: slint::Weak<MainWindow>,
+) {
+    let delete_result = camden_core::delete_paths(&paths);
+
+    let status_text = match delete_result {
+        Ok(stats) => {
+            let deleted_set: HashSet<PathBuf> = paths.into_iter().collect();
+            if let Ok(mut state_mut) = state.lock() {
+                prune_moved_files(&mut state_mut, &deleted_set);
+            }
+            format!("Deleted {} photos", stats.moved)
+        }
+        Err(err) => format!("Failed to delete photos: {}", err),
+    };
+
+    let state_clone = Arc::clone(&state);
+    slint::invoke_from_event_loop(move || {
+        if let Some(ui) = ui_weak.upgrade()
+            && let Ok(state_ref) = state_clone.lock()
+        {
             refresh_ui(
                 &ui,
                 &state_ref,
@@ -965,7 +1192,12 @@ fn build_group_model(groups: &[InternalGroup]) -> ModelRc<GroupData> {
     ModelRc::from(Rc::new(VecModel::from(group_data)))
 }
 
-/// Map all photos from summary for gallery view (includes all scanned photos)
+/// Maps all scanned photos for the Organize tab (includes duplicates, low-res
+/// singletons, and unique high-res photos alike).
+///
+/// Low-resolution files are pre-selected by default so the "select all low-res"
+/// workflow in Organize starts from a sensible baseline; the user can still
+/// deselect individual files before archiving/deleting.
 fn map_all_photos(summary: &ScanSummary) -> Vec<InternalFile> {
     summary
         .groups
@@ -989,7 +1221,7 @@ fn map_all_photos(summary: &ScanSummary) -> Vec<InternalFile> {
                     info,
                     size_bytes: file.size_bytes,
                     sort_date,
-                    selected: false,
+                    selected: file.resolution_tier.should_preselect(),
                     thumbnail: file.thumbnail.clone(),
                     resolution_tier: file.resolution_tier,
                     moderation_tier: file.moderation_tier.clone().unwrap_or_default(),
@@ -1003,12 +1235,18 @@ fn map_all_photos(summary: &ScanSummary) -> Vec<InternalFile> {
         .collect()
 }
 
+/// Maps duplicate groups (2+ files sharing a fingerprint) for the Duplicates tab.
+///
+/// Low-resolution *singletons* are deliberately excluded here: the Duplicates tab is
+/// scoped to "easy win" duplicate cleanup only. Singletons flagged for low resolution
+/// are surfaced instead in the Organize tab via `map_all_photos`, alongside sort/filter
+/// tools better suited to that kind of bulk triage.
 fn map_summary(summary: &ScanSummary, prefer_ultrawide: bool) -> Vec<InternalGroup> {
     let prefs = KeeperPreferences {
         prefer_ultrawide_aspect_ratios: prefer_ultrawide,
     };
     summary
-        .actionable_groups()
+        .duplicate_groups()
         .map(|group| {
             let fingerprint = format!("{:016x}", group.fingerprint);
             let mut files: Vec<InternalFile> = group
@@ -1044,17 +1282,14 @@ fn map_summary(summary: &ScanSummary, prefer_ultrawide: bool) -> Vec<InternalGro
                 })
                 .collect();
 
-            // For duplicate groups: use the shared keeper API to select all except the keeper.
-            // For resolution singletons: pre-select only if Low tier.
-            if files.len() > 1 {
-                let candidates = build_keeper_candidates(&files);
-                let keep_index = select_keeper_index(&candidates, &prefs);
-                for (index, file) in files.iter_mut().enumerate() {
-                    file.selected = index != keep_index;
-                    file.is_keep_candidate = index == keep_index;
-                }
-            } else if files.len() == 1 && files[0].resolution_tier.should_preselect() {
-                files[0].selected = true;
+            // Use the shared keeper API to select all except the keeper.
+            // `duplicate_groups()` only yields groups with 2+ files, so this is
+            // always reached (unlike the old `actionable_groups()`-based version).
+            let candidates = build_keeper_candidates(&files);
+            let keep_index = select_keeper_index(&candidates, &prefs);
+            for (index, file) in files.iter_mut().enumerate() {
+                file.selected = index != keep_index;
+                file.is_keep_candidate = index == keep_index;
             }
 
             // Calculate group totals
@@ -1116,6 +1351,26 @@ fn ensure_keeper_selected(groups: &mut [InternalGroup], prefer_ultrawide: bool) 
             .map(|f| f.size_bytes)
             .sum();
     }
+}
+
+/// Removes files that were moved, archived, or deleted from every in-memory
+/// collection (`groups`, `all_photos`, `gallery_photos`), keeping the UI in sync
+/// with what's actually left on disk.
+///
+/// Also re-runs keeper selection on the remaining duplicate groups so the
+/// `is_keep_candidate` / `selected` flags stay consistent after removal.
+fn prune_moved_files(state: &mut AppState, moved: &HashSet<PathBuf>) {
+    let prefer_ultrawide = state.prefer_ultrawide;
+    for group in state.groups.iter_mut() {
+        group.files.retain(|file| !moved.contains(&file.path));
+    }
+    state.groups.retain(|group| !group.files.is_empty());
+    ensure_keeper_selected(&mut state.groups, prefer_ultrawide);
+
+    state.all_photos.retain(|file| !moved.contains(&file.path));
+    state
+        .gallery_photos
+        .retain(|file| !moved.contains(&file.path));
 }
 
 /// Pushes a snapshot of current selection flags onto the undo stack (capped at 20 entries).
@@ -1555,6 +1810,44 @@ fn apply_gallery_filters(
         .collect()
 }
 
+/// Sorts gallery photos in place according to the Organize tab's "Sort" dropdown.
+///
+/// `sort_by`: 0=Newest first, 1=Oldest first, 2=Largest first, 3=Smallest first, 4=Name (A-Z).
+/// Unknown values fall back to the default (newest first).
+fn sort_gallery_photos(photos: &mut [InternalFile], sort_by: i32) {
+    match sort_by {
+        1 => photos.sort_by(|a, b| a.sort_date.cmp(&b.sort_date)),
+        2 => photos.sort_by_key(|f| std::cmp::Reverse(f.size_bytes)),
+        3 => photos.sort_by_key(|f| f.size_bytes),
+        4 => photos.sort_by(|a, b| a.display_name.cmp(&b.display_name)),
+        _ => photos.sort_by(|a, b| b.sort_date.cmp(&a.sort_date)),
+    }
+}
+
+/// Reads every filter and sort control from the UI, re-derives `gallery_photos`
+/// from `all_photos`, and applies the selected sort order.
+///
+/// Shared by both the filter-changed and sort-changed callbacks since both
+/// need to fully recompute the filtered/sorted view from scratch.
+fn apply_gallery_filters_and_sort_from_ui(state: &mut AppState, ui: &MainWindow) {
+    let mut filtered = apply_gallery_filters(
+        &state.all_photos,
+        ui.get_filter_show_landscape(),
+        ui.get_filter_show_portrait(),
+        ui.get_filter_show_square(),
+        ui.get_filter_show_high_res(),
+        ui.get_filter_show_mobile_res(),
+        ui.get_filter_show_low_res(),
+        ui.get_filter_show_safe(),
+        ui.get_filter_show_sensitive(),
+        ui.get_filter_show_mature(),
+        ui.get_filter_show_restricted(),
+        ui.get_filter_tag_search().as_ref(),
+    );
+    sort_gallery_photos(&mut filtered, ui.get_gallery_sort_by());
+    state.gallery_photos = filtered;
+}
+
 fn format_status(state: &AppState) -> String {
     if state.scanning {
         return "Scanning…".to_string();
@@ -1579,12 +1872,14 @@ fn format_status(state: &AppState) -> String {
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 fn build_scan_config(
     rename_to_guid: bool,
     detect_low_resolution: bool,
     enable_classification: bool,
     enable_feature_detection: bool,
     prefer_ultrawide_aspect_ratios: bool,
+    low_resolution_config: LowResolutionConfig,
 ) -> ScanConfig {
     let mut config = ScanConfig::new(default_extensions(), ThreadingMode::Parallel);
     if let Some(mut dir) = dirs::data_local_dir() {
@@ -1595,6 +1890,7 @@ fn build_scan_config(
     config
         .with_guid_rename(rename_to_guid)
         .with_low_resolution_detection(detect_low_resolution)
+        .with_low_resolution_config(low_resolution_config)
         .with_classification(enable_classification)
         .with_feature_detection(enable_feature_detection)
         .with_prefer_ultrawide_aspect_ratios(prefer_ultrawide_aspect_ratios)

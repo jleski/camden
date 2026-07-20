@@ -20,12 +20,12 @@ pub mod snapshot;
 pub mod thumbnails;
 
 pub use keeper::{keeper_ordering, select_keeper_index, KeeperCandidate, KeeperPreferences};
-pub use operations::{move_duplicates, move_paths, MoveError, MoveStats};
+pub use operations::{copy_paths, delete_paths, move_duplicates, move_paths, MoveError, MoveStats};
 pub use rename::{ensure_guid_name, is_guid_named, RenameError};
 pub use reporting::{print_duplicates, write_classification_report, write_json};
 pub use resolution::{
-    resolution_tier, ResolutionTier, MIN_LANDSCAPE_WIDTH, MIN_PORTRAIT_HEIGHT_DESKTOP,
-    MIN_PORTRAIT_HEIGHT_MOBILE,
+    resolution_tier, LowResolutionConfig, ResolutionTier, DEFAULT_MIN_LONGEST_EDGE,
+    MIN_LANDSCAPE_WIDTH, MIN_PORTRAIT_HEIGHT_DESKTOP, MIN_PORTRAIT_HEIGHT_MOBILE,
 };
 pub use scanner::{
     count_entries, scan, DuplicateEntry, DuplicateGroup, ScanConfig, ScanSummary, ThreadingMode,

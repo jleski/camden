@@ -108,6 +108,7 @@ export component MainWindow inherits Window {
     in-out property <bool> filter_show_restricted: true;
     in-out property <string> filter_tag_search: "";
     in-out property <[{name: string, count: int}]> available_tags: [];
+    in-out property <int> gallery_sort_by: 0;
 
     // ===== SETTINGS VIEW PROPERTIES =====
     in-out property <string> settings_archive_path: "";
@@ -116,6 +117,9 @@ export component MainWindow inherits Window {
     in-out property <bool> settings_compact_cards: false;
     in-out property <float> settings_cache_size_mb: 0.0;
     in-out property <int> settings_cached_thumbnails: 0;
+    in-out property <int> settings_low_res_min_longest_edge: 1900;
+    in-out property <bool> settings_low_res_check_landscape: true;
+    in-out property <bool> settings_low_res_check_portrait: true;
 
     // ===== PREVIEW MODAL PROPERTIES =====
     in property <bool> show_preview_modal: false;
@@ -159,8 +163,10 @@ export component MainWindow inherits Window {
     callback gallery_photo_clicked(int);
     callback gallery_photo_toggle_selected(int);
     callback gallery_filter_changed();
+    callback gallery_sort_changed();
     callback gallery_export_selected();
     callback gallery_archive_selected();
+    callback gallery_delete_selected();
     callback gallery_select_all();
     callback gallery_deselect_all();
 
@@ -268,12 +274,15 @@ export component MainWindow inherits Window {
                 tag-search <=> filter_tag_search;
                 available-tags: available_tags;
                 zoom-level <=> zoom_level;
+                sort-by <=> gallery_sort_by;
 
                 photo-clicked(idx) => { gallery_photo_clicked(idx); }
                 photo-toggle-selected(idx) => { gallery_photo_toggle_selected(idx); }
                 filter-changed => { gallery_filter_changed(); }
+                sort-changed => { gallery_sort_changed(); }
                 export-selected => { gallery_export_selected(); }
                 archive-selected => { gallery_archive_selected(); }
+                delete-selected => { gallery_delete_selected(); }
                 select-all => { gallery_select_all(); }
                 deselect-all => { gallery_deselect_all(); }
             }
@@ -287,6 +296,9 @@ export component MainWindow inherits Window {
                 cache-size-mb: settings_cache_size_mb;
                 cached-thumbnails: settings_cached_thumbnails;
                 dark-mode <=> dark_mode;
+                low-res-min-longest-edge <=> settings_low_res_min_longest_edge;
+                low-res-check-landscape <=> settings_low_res_check_landscape;
+                low-res-check-portrait <=> settings_low_res_check_portrait;
 
                 browse-archive-path => { browse_archive_path(); }
                 browse-cache-path => { browse_cache_path(); }

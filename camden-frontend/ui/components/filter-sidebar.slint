@@ -169,17 +169,17 @@ export component FilterSidebar inherits Rectangle {
                 padding-left: 8px;
 
                 CheckBox {
-                    text: "High (\u{2265}1200px)";
+                    text: "High resolution";
                     checked <=> show-high-res;
                     toggled => { filter-changed(); }
                 }
                 CheckBox {
-                    text: "Mobile (850-1199px)";
+                    text: "Mobile resolution";
                     checked <=> show-mobile-res;
                     toggled => { filter-changed(); }
                 }
                 CheckBox {
-                    text: "Low (<850px)";
+                    text: "Low resolution";
                     checked <=> show-low-res;
                     toggled => { filter-changed(); }
                 }

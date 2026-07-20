@@ -4,7 +4,7 @@ use crate::detector::{
 };
 use crate::keeper::{KeeperCandidate, KeeperPreferences};
 use crate::rename::ensure_guid_name;
-use crate::resolution::{resolution_tier, ResolutionTier};
+use crate::resolution::{LowResolutionConfig, ResolutionTier};
 use crate::thumbnails::ThumbnailCache;
 use indicatif::ProgressBar;
 use rayon::prelude::*;
@@ -30,8 +30,10 @@ pub struct ScanConfig {
     pub thumbnail_cache_root: Option<PathBuf>,
     /// When true, renames files to GUID format before processing.
     pub rename_to_guid: bool,
-    /// When true, tags images below FHD resolution thresholds.
+    /// When true, tags images below the configured low-resolution threshold.
     pub detect_low_resolution: bool,
+    /// Rules used to classify an image as low resolution when `detect_low_resolution` is set.
+    pub low_resolution_config: LowResolutionConfig,
     /// When true, runs AI classification (moderation + tagging) on each image.
     pub enable_classification: bool,
     /// When true, enables feature-based detection using ORB + RANSAC (finds crops).
@@ -50,6 +52,7 @@ impl ScanConfig {
             thumbnail_cache_root: None,
             rename_to_guid: false,
             detect_low_resolution: false,
+            low_resolution_config: LowResolutionConfig::default(),
             enable_classification: false,
             enable_feature_detection: false,
             prefer_ultrawide_aspect_ratios: false,
@@ -68,6 +71,14 @@ impl ScanConfig {
 
     pub fn with_low_resolution_detection(mut self, enabled: bool) -> Self {
         self.detect_low_resolution = enabled;
+        self
+    }
+
+    /// Sets the rules used to classify an image as low resolution.
+    ///
+    /// Only takes effect when combined with [`Self::with_low_resolution_detection`].
+    pub fn with_low_resolution_config(mut self, config: LowResolutionConfig) -> Self {
+        self.low_resolution_config = config;
         self
     }
 
@@ -377,7 +388,7 @@ fn analyze_image_features(
             // Detect low resolution if enabled
             if config.detect_low_resolution {
                 let (w, h) = analysis.metadata.dimensions;
-                analysis.metadata.resolution_tier = resolution_tier(w, h);
+                analysis.metadata.resolution_tier = config.low_resolution_config.classify(w, h);
             }
 
             Some(analysis)

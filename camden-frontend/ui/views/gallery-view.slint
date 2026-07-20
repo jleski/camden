@@ -1,8 +1,9 @@
 // GalleryView - filtered photo gallery with organization features
 
-import { Button, ScrollView } from "std-widgets.slint";
+import { Button, ScrollView, ComboBox } from "std-widgets.slint";
 import { PhotoData, PhotoCard } from "../components/photo-card.slint";
 import { FilterSidebar } from "../components/filter-sidebar.slint";
+import { ZoomSlider } from "../components/zoom-slider.slint";
 import { Theme } from "../components/theme.slint";
 
 
@@ -43,11 +44,16 @@ export component GalleryView inherits Rectangle {
     in-out property <string> tag-search: "";
     in-out property <float> zoom-level: 100.0;
 
+    // Sort order: 0=Newest first, 1=Oldest first, 2=Largest first, 3=Smallest first, 4=Name (A-Z)
+    in-out property <int> sort-by: 0;
+
     callback photo-clicked(int);
     callback photo-toggle-selected(int);
     callback filter-changed();
+    callback sort-changed();
     callback export-selected();
     callback archive-selected();
+    callback delete-selected();
     callback select-all();
     callback deselect-all();
 
@@ -110,7 +116,7 @@ export component GalleryView inherits Rectangle {
                             spacing: 12px;
 
                             Text {
-                                text: "Photo Gallery";
+                                text: "Organize";
                                 font-size: 16pt;
                                 font-weight: 600;
                                 color: Theme.colors.text_primary;
@@ -213,6 +219,39 @@ export component GalleryView inherits Rectangle {
                             }
                         }
 
+                        // Zoom + sort + bulk-selection toolbar
+                        HorizontalLayout {
+                            spacing: 12px;
+
+                            ZoomSlider {
+                                zoom-level <=> zoom-level;
+                                horizontal-stretch: 1;
+                            }
+
+                            Text {
+                                text: "Sort:";
+                                font-size: 10pt;
+                                color: Theme.colors.text_secondary;
+                                vertical-alignment: center;
+                            }
+
+                            ComboBox {
+                                width: 140px;
+                                model: ["Newest first", "Oldest first", "Largest first", "Smallest first", "Name (A-Z)"];
+                                current-index: sort-by;
+                                selected(value) => {
+                                    sort-by = self.current-index;
+                                    sort-changed();
+                                }
+                            }
+
+                            Button {
+                                text: "Select All";
+                                enabled: stats.filtered_photos > 0;
+                                clicked => { select-all(); }
+                            }
+                        }
+
                         // Selection toolbar
                         if stats.selected_count > 0 : Rectangle {
                             height: 40px;
@@ -244,6 +283,11 @@ export component GalleryView inherits Rectangle {
                                 Button {
                                     text: "Archive";
                                     clicked => { archive-selected(); }
+                                }
+
+                                Button {
+                                    text: "Delete";
+                                    clicked => { delete-selected(); }
                                 }
 
                                 Button {

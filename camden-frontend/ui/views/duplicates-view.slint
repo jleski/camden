@@ -55,10 +55,12 @@ component DuplicateGroupCard inherits Rectangle {
             spacing: 12px;
 
             Text {
-                text: group.files.length == 1 ? "Low Resolution" : "Duplicate Group";
+                // The Duplicates tab only ever shows true duplicate groups (2+ files);
+                // low-resolution singletons are handled separately in the Organize tab.
+                text: "Duplicate Group";
                 font-size: 11pt;
                 font-weight: 600;
-                color: group.files.length == 1 ? Theme.colors.accent_danger : Theme.colors.text_primary;
+                color: Theme.colors.text_primary;
                 vertical-alignment: center;
             }
 
@@ -472,20 +474,14 @@ export component DuplicatesView inherits Rectangle {
                             horizontal-stretch: 1;
                             vertical-stretch: 1;
 
-                            // Mouse-wheel zoom over the preview area.
-                            TouchArea {
-                                width: 100%;
-                                height: 100%;
-                                // Forward unhandled pointer events so clicks on cards still work.
-                                scroll-event(ev) => {
-                                    if ev.delta-y != 0 {
-                                        zoom-level = clamp(zoom-level - (ev.delta-y / 1px) / 3.0, 100.0, 400.0);
-                                        return EventResult.accept;
-                                    }
-                                    EventResult.reject
-                                }
-                            }
-
+                            // NOTE: Wheel-to-zoom over this area was attempted here previously,
+                            // but Slint's ScrollView/Flickable unconditionally consumes vertical
+                            // wheel input whenever its content is taller than the viewport
+                            // (which is true whenever the list can scroll), and Slint has no
+                            // supported way for an ancestor TouchArea to intercept wheel events
+                            // before a descendant Flickable claims them. That made scroll-to-zoom
+                            // silently non-functional in the common case. Use the ZoomSlider above
+                            // (buttons, drag track, or the "1:1" reset) instead.
                             ScrollView {
                                 width: 100%;
                                 height: 100%;

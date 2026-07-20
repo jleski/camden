@@ -1,6 +1,6 @@
 // SettingsView - configuration and preferences
 
-import { Button, LineEdit, CheckBox, ScrollView } from "std-widgets.slint";
+import { Button, LineEdit, CheckBox, ScrollView, SpinBox } from "std-widgets.slint";
 import { Theme } from "../components/theme.slint";
 
 export struct AppSettings {
@@ -72,6 +72,11 @@ export component SettingsView inherits Rectangle {
     in-out property <bool> show-tags: true;
     in-out property <bool> compact-cards: false;
     in-out property <bool> dark-mode: true;
+
+    // Low-resolution detection configuration
+    in-out property <int> low-res-min-longest-edge: 1900;
+    in-out property <bool> low-res-check-landscape: true;
+    in-out property <bool> low-res-check-portrait: true;
 
     // Read-only stats
     in property <float> cache-size-mb: 0.0;
@@ -170,6 +175,40 @@ export component SettingsView inherits Rectangle {
 
                     CheckBox {
                         checked <=> compact-cards;
+                    }
+                }
+            }
+
+            // Low-Resolution Detection Section
+            SettingsSection {
+                title: "Low-Resolution Detection";
+
+                SettingsRow {
+                    label: "Minimum longest edge (px)";
+                    description: "Images whose longest edge is smaller than this are flagged as low resolution";
+
+                    SpinBox {
+                        minimum: 200;
+                        maximum: 10000;
+                        step-size: 50;
+                        value <=> low-res-min-longest-edge;
+                        width: 120px;
+                    }
+                }
+
+                SettingsRow {
+                    label: "Check landscape / square images";
+
+                    CheckBox {
+                        checked <=> low-res-check-landscape;
+                    }
+                }
+
+                SettingsRow {
+                    label: "Check portrait images";
+
+                    CheckBox {
+                        checked <=> low-res-check-portrait;
                     }
                 }
             }

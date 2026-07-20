@@ -54,8 +54,15 @@ export component PhotoCard inherits Rectangle {
         spacing: 4px;
 
         // Thumbnail container
+        //
+        // Stretches to fill the remaining vertical space in the card instead of
+        // using a fixed height. This is required for zoom to have any visible
+        // effect: the outer PhotoCard is resized by the zoom level, but a fixed
+        // thumbnail height would leave the actual photo the same size while only
+        // the surrounding blank space grew.
         Rectangle {
-            height: compact ? 80px : 110px;
+            min-height: compact ? 80px : 110px;
+            vertical-stretch: 1;
             border-radius: 4px;
             clip: true;
             background: Theme.colors.bg_secondary;
