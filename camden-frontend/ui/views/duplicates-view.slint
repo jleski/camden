@@ -486,19 +486,24 @@ export component DuplicatesView inherits Rectangle {
                                 width: 100%;
                                 height: 100%;
 
-                                // Layout helpers
-                                property <length> card_base_height: 260px;
-                                property <length> card_chrome_height: 100px;
-                                property <length> card_display_height: (card_base_height / 1px) * (zoom-level / 100.0) * 1px;
-                                property <length> card_height: card_display_height + card_chrome_height;
-                                property <length> card_spacing: 12px;
-                                property <length> content_height: groups.length * card_height + (max(0, groups.length - 1)) * card_spacing;
-                                viewport-height: content_height;
+                                // A real VerticalLayout (rather than a raw Rectangle populated via
+                                // `for` with manual x/y math) lets Slint auto-size the viewport
+                                // from its children, which is the documented/robust behavior:
+                                // "If the ScrollView contains a layout, the default value of
+                                // viewport-height is set from that layout." A bare Rectangle with
+                                // a `for` loop inside does not get this treatment (no auto-sizing
+                                // for for-loop-populated content — upstream Slint issue #407),
+                                // which previously caused the wrapping Rectangle to collapse to
+                                // 0px width/height and made every card invisible.
+                                VerticalLayout {
+                                    spacing: 12px;
+                                    alignment: start;
 
-                                Rectangle {
-                                    height: content_height;
                                     for group[group-index] in groups: DuplicateGroupCard {
-                                        y: group-index * (card_height + card_spacing);
+                                        // Custom components default to their own preferred size
+                                        // inside a layout, unlike plain Rectangles which stretch
+                                        // automatically — this must be explicit or the card
+                                        // collapses to (near) zero width and becomes invisible.
                                         width: 100%;
                                         group: group;
                                         group-index: group-index;

@@ -41,9 +41,18 @@ export component ZoomSlider inherits Rectangle {
         }
 
         // Percentage label
+        //
+        // Deliberately no `height: 100%` here: inside a HorizontalLayout, a
+        // child already defaults to filling the layout's cross-axis (height)
+        // via `cross-axis-alignment: stretch`. Setting `height: 100%` directly
+        // introduces a self-referential binding loop through the parent's
+        // layout-info cache, silently corrupting an *unrelated* sibling's
+        // `vertical-stretch` elsewhere in the tree (observed in Duplicates/
+        // Organize tabs: the whole photo list rendered at 0 height whenever
+        // ZoomSlider was present as a sibling of a `vertical-stretch: 1`
+        // element in an ancestor VerticalLayout).
         Rectangle {
             width: 50px;
-            height: 100%;
 
             Text {
                 text: round(zoom-level) + "%";
@@ -55,9 +64,12 @@ export component ZoomSlider inherits Rectangle {
         }
 
         // Draggable slider track
+        //
+        // No `height: 100%` here either — see note above on the percentage
+        // label. The layout's default stretch alignment already fills the
+        // available height.
         track-area := Rectangle {
             width: 150px;
-            height: 100%;
 
             // Track background
             Rectangle {
